@@ -1075,6 +1075,8 @@ var Annotations = map[string]string{
 
 	"[sig-etcd][Feature:EtcdVerticalScaling][Suite:openshift/etcd/scaling] etcd is able to vertically scale up and down with a single node [Timeout:60m][apigroup:machine.openshift.io]": "",
 
+	"[sig-etcd][Feature:HardwareSpeed][Serial] etcd is able to update the hardware speed [Timeout:30m][apigroup:machine.openshift.io]": " [Suite:openshift/conformance/serial]",
+
 	"[sig-imageregistry] Image registry [apigroup:route.openshift.io] should redirect on blob pull [apigroup:image.openshift.io]": " [Skipped:NoOptionalCapabilities] [Suite:openshift/conformance/parallel]",
 
 	"[sig-imageregistry][Feature:ImageAppend] Image append should create images by appending them [apigroup:image.openshift.io]": " [Skipped:Disconnected] [Skipped:NoOptionalCapabilities] [Suite:openshift/conformance/parallel]",
@@ -1349,6 +1351,16 @@ var Annotations = map[string]string{
 
 	"[sig-network][Feature:EgressRouterCNI] when using openshift ovn-kubernetes should ensure ipv6 egressrouter cni resources are created [apigroup:operator.openshift.io]": " [Suite:openshift/conformance/parallel]",
 
+	"[sig-network][Feature:IPsec] when using openshift ovn-kubernetes check traffic for east west IPsec [apigroup:config.openshift.io] [Suite:openshift/network/ipsec] with IPsec in disabled mode": "",
+
+	"[sig-network][Feature:IPsec] when using openshift ovn-kubernetes check traffic for east west IPsec [apigroup:config.openshift.io] [Suite:openshift/network/ipsec] with IPsec in external mode": "",
+
+	"[sig-network][Feature:IPsec] when using openshift ovn-kubernetes check traffic for east west IPsec [apigroup:config.openshift.io] [Suite:openshift/network/ipsec] with IPsec in full mode": "",
+
+	"[sig-network][Feature:IPsec] when using openshift ovn-kubernetes check traffic for north south IPsec [apigroup:config.openshift.io] [Suite:openshift/network/ipsec] with IPsec in external mode": "",
+
+	"[sig-network][Feature:IPsec] when using openshift ovn-kubernetes check traffic for north south IPsec [apigroup:config.openshift.io] [Suite:openshift/network/ipsec] with IPsec in full mode": "",
+
 	"[sig-network][Feature:MultiNetworkPolicy][Serial][apigroup:operator.openshift.io] should enforce a network policies on secondary network IPv4": " [Suite:openshift/conformance/serial]",
 
 	"[sig-network][Feature:MultiNetworkPolicy][Serial][apigroup:operator.openshift.io] should enforce a network policies on secondary network IPv6": " [Suite:openshift/conformance/serial]",
@@ -1374,6 +1386,8 @@ var Annotations = map[string]string{
 	"[sig-network][Feature:Router][apigroup:operator.openshift.io] The HAProxy router should set Forwarded headers appropriately": " [Skipped:Disconnected] [Suite:openshift/conformance/parallel]",
 
 	"[sig-network][Feature:Router][apigroup:route.openshift.io] The HAProxy router converges when multiple routers are writing conflicting status": " [Suite:openshift/conformance/parallel]",
+
+	"[sig-network][Feature:Router][apigroup:route.openshift.io] The HAProxy router converges when multiple routers are writing conflicting upgrade validation status": " [Suite:openshift/conformance/parallel]",
 
 	"[sig-network][Feature:Router][apigroup:route.openshift.io] The HAProxy router converges when multiple routers are writing status": " [Suite:openshift/conformance/parallel]",
 
@@ -1423,6 +1437,18 @@ var Annotations = map[string]string{
 
 	"[sig-network][Feature:vlan] should create pingable pods with vlan interface on an in-container master [apigroup:k8s.cni.cncf.io]": " [Suite:openshift/conformance/parallel]",
 
+	"[sig-network][OCPFeatureGate:NetworkDiagnosticsConfig][Serial] Should be enabled by default": " [Suite:openshift/conformance/serial]",
+
+	"[sig-network][OCPFeatureGate:NetworkDiagnosticsConfig][Serial] Should function without any target pods": " [Suite:openshift/conformance/serial]",
+
+	"[sig-network][OCPFeatureGate:NetworkDiagnosticsConfig][Serial] Should move the source diagnostics pods based on the new selector and tolerations": " [Suite:openshift/conformance/serial]",
+
+	"[sig-network][OCPFeatureGate:NetworkDiagnosticsConfig][Serial] Should move the target diagnostics pods based on the new selector and tolerations": " [Suite:openshift/conformance/serial]",
+
+	"[sig-network][OCPFeatureGate:NetworkDiagnosticsConfig][Serial] Should remove all network diagnostics pods when disabled": " [Suite:openshift/conformance/serial]",
+
+	"[sig-network][OCPFeatureGate:NetworkDiagnosticsConfig][Serial] Should set the condition to false if there are no nodes able to host the source pods": " [Suite:openshift/conformance/serial]",
+
 	"[sig-network][endpoints] admission [apigroup:config.openshift.io] blocks manual creation of EndpointSlices pointing to the cluster or service network": " [Suite:openshift/conformance/parallel]",
 
 	"[sig-network][endpoints] admission [apigroup:config.openshift.io] blocks manual creation of Endpoints pointing to the cluster or service network": " [Suite:openshift/conformance/parallel]",
@@ -1470,6 +1496,8 @@ var Annotations = map[string]string{
 	"[sig-node][apigroup:config.openshift.io] CPU Partitioning cluster workloads in annotated namespaces should be modified if CPUPartitioningMode = AllNodes": " [Suite:openshift/conformance/parallel]",
 
 	"[sig-node][apigroup:config.openshift.io] CPU Partitioning cluster workloads in non-annotated namespaces should be allowed if CPUPartitioningMode = AllNodes with a warning annotation": " [Suite:openshift/conformance/parallel]",
+
+	"[sig-node][apigroup:config.openshift.io] CPU Partitioning cluster workloads with limits should have resources modified if CPUPartitioningMode = AllNodes": " [Suite:openshift/conformance/parallel]",
 
 	"[sig-node][apigroup:config.openshift.io] CPU Partitioning node validation should have correct cpuset and cpushare set in crio containers": " [Suite:openshift/conformance/parallel]",
 

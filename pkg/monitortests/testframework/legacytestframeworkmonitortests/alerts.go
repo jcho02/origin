@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/openshift/origin/pkg/alerts"
 	"github.com/openshift/origin/pkg/monitortestframework"
 	"github.com/openshift/origin/pkg/monitortestlibrary/allowedalerts"
 	"github.com/openshift/origin/pkg/monitortestlibrary/historicaldata"
@@ -14,11 +15,9 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/sirupsen/logrus"
 
+	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 	"github.com/openshift/origin/pkg/monitor/monitorapi"
 	"github.com/openshift/origin/pkg/test/ginkgo/junitapi"
-	helper "github.com/openshift/origin/test/extended/util/prometheus"
-
-	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -27,7 +26,7 @@ import (
 	"k8s.io/kubernetes/test/e2e/framework"
 )
 
-type AllowedAlertsFunc func(featureSet configv1.FeatureSet) (allowedFiringWithBugs, allowedFiring, allowedPendingWithBugs, allowedPending helper.MetricConditions)
+type AllowedAlertsFunc func(featureSet configv1.FeatureSet) (allowedFiringWithBugs, allowedFiring, allowedPendingWithBugs, allowedPending alerts.MetricConditions)
 
 func testAlerts(events monitorapi.Intervals,
 	allowancesFunc AllowedAlertsFunc,
@@ -143,23 +142,23 @@ func runBackstopTest(
 		case allowedalerts.AlertPending:
 			// a pending test covers pending and everything above (firing)
 			allowedPendingAlerts = append(allowedPendingAlerts,
-				helper.MetricCondition{
-					Selector: map[string]string{"alertname": alertTest.AlertName()},
-					Text:     "has a separate e2e test",
+				alerts.MetricCondition{
+					AlertName: alertTest.AlertName(),
+					Text:      "has a separate e2e test",
 				},
 			)
 			allowedFiringAlerts = append(allowedFiringAlerts,
-				helper.MetricCondition{
-					Selector: map[string]string{"alertname": alertTest.AlertName()},
-					Text:     "has a separate e2e test",
+				alerts.MetricCondition{
+					AlertName: alertTest.AlertName(),
+					Text:      "has a separate e2e test",
 				},
 			)
 		case allowedalerts.AlertInfo:
 			// an info test covers all firing
 			allowedFiringAlerts = append(allowedFiringAlerts,
-				helper.MetricCondition{
-					Selector: map[string]string{"alertname": alertTest.AlertName()},
-					Text:     "has a separate e2e test",
+				alerts.MetricCondition{
+					AlertName: alertTest.AlertName(),
+					Text:      "has a separate e2e test",
 				},
 			)
 		}
@@ -172,12 +171,12 @@ func runBackstopTest(
 
 	// New version for alert testing against intervals instead of directly from prometheus:
 	for _, firing := range firingIntervals {
-		fan := firing.StructuredLocator.Keys[monitorapi.LocatorAlertKey]
+		fan := firing.Locator.Keys[monitorapi.LocatorAlertKey]
 		if isSkippedAlert(fan) {
 			continue
 		}
 		seconds := firing.To.Sub(firing.From)
-		violation := fmt.Sprintf("V2 alert %s fired for %s seconds with labels: %s", fan, seconds, firing.StructuredMessage.OldMessage())
+		violation := fmt.Sprintf("V2 alert %s fired for %s seconds with labels: %s", fan, seconds, firing.Message.OldMessage())
 		if cause := allowedFiringAlerts.MatchesInterval(firing); cause != nil {
 			// TODO: this seems to never be happening? no search.ci results show allowed
 			debug.Insert(fmt.Sprintf("%s result=allow (%s)", violation, cause.Text))
@@ -191,12 +190,12 @@ func runBackstopTest(
 	}
 	// New version for alert testing against intervals instead of directly from prometheus:
 	for _, pending := range pendingIntervals {
-		fan := pending.StructuredLocator.Keys[monitorapi.LocatorAlertKey]
+		fan := pending.Locator.Keys[monitorapi.LocatorAlertKey]
 		if isSkippedAlert(fan) {
 			continue
 		}
 		seconds := pending.To.Sub(pending.From)
-		violation := fmt.Sprintf("V2 alert %s pending for %s seconds with labels: %s", fan, seconds, pending.StructuredMessage.OldMessage())
+		violation := fmt.Sprintf("V2 alert %s pending for %s seconds with labels: %s", fan, seconds, pending.Message.OldMessage())
 		if cause := allowedPendingAlerts.MatchesInterval(pending); cause != nil {
 			// TODO: this seems to never be happening? no search.ci results show allowed
 			debug.Insert(fmt.Sprintf("%s result=allow (%s)", violation, cause.Text))
@@ -263,7 +262,7 @@ func runNoNewAlertsFiringTest(historicalData *historicaldata.AlertBestMatcher,
 	newAlertsFiring := []string{}
 
 	for _, interval := range firingIntervals {
-		alertName := interval.StructuredLocator.Keys[monitorapi.LocatorAlertKey]
+		alertName := interval.Locator.Keys[monitorapi.LocatorAlertKey]
 
 		if isSkippedAlert(alertName) {
 			continue
@@ -272,7 +271,7 @@ func runNoNewAlertsFiringTest(historicalData *historicaldata.AlertBestMatcher,
 		// Skip alerts with severity info, I don't totally understand the semantics here but it appears some components
 		// use this for informational alerts. (saw two examples from Insights)
 		// We're only interested in warning+critical for the purposes of this test.
-		if interval.StructuredMessage.Annotations[monitorapi.AnnotationSeverity] == "info" {
+		if interval.Message.Annotations[monitorapi.AnnotationSeverity] == "info" {
 			continue
 		}
 

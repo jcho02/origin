@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
+	"time"
 
 	v1 "github.com/openshift/api/config/v1"
 	configclient "github.com/openshift/client-go/config/clientset/versioned"
@@ -77,8 +79,8 @@ func (ade *SimplePathologicalEventMatcher) Name() string {
 }
 
 func (ade *SimplePathologicalEventMatcher) Matches(i monitorapi.Interval) bool {
-	l := i.StructuredLocator
-	msg := i.StructuredMessage
+	l := i.Locator
+	msg := i.Message
 	log := logrus.WithField("allower", ade.Name())
 	for lk, r := range ade.locatorKeyRegexes {
 		if !r.MatchString(l.Keys[lk]) {
@@ -106,7 +108,7 @@ func (ade *SimplePathologicalEventMatcher) Allows(i monitorapi.Interval, topolog
 		return false
 	}
 
-	msg := i.StructuredMessage
+	msg := i.Message
 	if !ade.Matches(i) {
 		return false
 	}
@@ -152,8 +154,8 @@ func (r *AllowedPathologicalEventRegistry) AddPathologicalEventMatcherOrDie(even
 // Returns true if so, the matcher name, and the matcher itself.
 // It does NOT check if the interval should be allowed.
 func (r *AllowedPathologicalEventRegistry) MatchesAny(i monitorapi.Interval) (bool, EventMatcher) {
-	l := i.StructuredLocator
-	msg := i.StructuredMessage
+	l := i.Locator
+	msg := i.Message
 	for k, m := range r.matchers {
 		allowed := m.Matches(i)
 		if allowed {
@@ -170,8 +172,8 @@ func (r *AllowedPathologicalEventRegistry) MatchesAny(i monitorapi.Interval) (bo
 func (r *AllowedPathologicalEventRegistry) AllowedByAny(
 	i monitorapi.Interval,
 	topology v1.TopologyMode) (bool, EventMatcher) {
-	l := i.StructuredLocator
-	msg := i.StructuredMessage
+	l := i.Locator
+	msg := i.Message
 	for k, m := range r.matchers {
 		allowed := m.Allows(i, topology)
 		if allowed {
@@ -695,10 +697,10 @@ func IsEventAfterInstallation(monitorEvent monitorapi.Interval, kubeClientConfig
 		return true, nil
 	}
 
-	namespace := monitorEvent.StructuredLocator.Keys[monitorapi.LocatorNamespaceKey]
-	pod := monitorEvent.StructuredLocator.Keys[monitorapi.LocatorNamespaceKey]
-	reason := monitorEvent.StructuredMessage.Reason
-	msg := monitorEvent.StructuredMessage.HumanMessage
+	namespace := monitorEvent.Locator.Keys[monitorapi.LocatorNamespaceKey]
+	pod := monitorEvent.Locator.Keys[monitorapi.LocatorNamespaceKey]
+	reason := monitorEvent.Message.Reason
+	msg := monitorEvent.Message.HumanMessage
 	kubeClient, err := kubernetes.NewForConfig(kubeClientConfig)
 	if err != nil {
 		return true, nil
@@ -799,10 +801,10 @@ func newFailedSchedulingDuringNodeUpdatePathologicalEventMatcher(finalIntervals 
 	// expected during NodeUpdate.
 	nodeUpdateIntervals := finalIntervals.Filter(func(eventInterval monitorapi.Interval) bool {
 		return eventInterval.Source == monitorapi.SourceNodeState &&
-			eventInterval.StructuredLocator.Type == monitorapi.LocatorTypeNode &&
-			eventInterval.StructuredMessage.Annotations[monitorapi.AnnotationConstructed] == monitorapi.ConstructionOwnerNodeLifecycle &&
-			eventInterval.StructuredMessage.Annotations[monitorapi.AnnotationPhase] == "Update" &&
-			strings.Contains(eventInterval.StructuredMessage.Annotations[monitorapi.AnnotationRoles], "master")
+			eventInterval.Locator.Type == monitorapi.LocatorTypeNode &&
+			eventInterval.Message.Annotations[monitorapi.AnnotationConstructed] == monitorapi.ConstructionOwnerNodeLifecycle &&
+			eventInterval.Message.Annotations[monitorapi.AnnotationPhase] == "Update" &&
+			strings.Contains(eventInterval.Message.Annotations[monitorapi.AnnotationRoles], "master")
 	})
 	logrus.Infof("found %d NodeUpdate intervals", len(nodeUpdateIntervals))
 	return &OverlapOtherIntervalsPathologicalEventMatcher{
@@ -867,7 +869,7 @@ func newTopologyAwareHintsDisabledDuringTaintTestsPathologicalEventMatcher(final
 
 	taintManagerTestIntervals := finalIntervals.Filter(func(eventInterval monitorapi.Interval) bool {
 		return eventInterval.Source == monitorapi.SourceE2ETest &&
-			strings.Contains(eventInterval.StructuredLocator.Keys[monitorapi.LocatorE2ETestKey], "NoExecuteTaintManager")
+			strings.Contains(eventInterval.Locator.Keys[monitorapi.LocatorE2ETestKey], "NoExecuteTaintManager")
 	})
 
 	// The original mechanism doesn't properly count the compensation factor the number of events that happened in the window that were batched
@@ -898,13 +900,48 @@ func newSingleNodeConnectionRefusedEventMatcher(finalIntervals monitorapi.Interv
 	const (
 		ocpAPINamespace      = "openshift-apiserver"
 		ocpOAuthAPINamespace = "openshift-oauth-apiserver"
+		defaultNamespace     = "default"
+
+		bufferTime     = time.Second * 45
+		bufferSourceID = "GeneratedSNOBufferInterval"
 	)
 	snoTopology := v1.SingleReplicaTopologyMode
+
+	// Intervals are collected as they come to the monitorapi and the `from` and `to` is recorded at that point,
+	// this works fine for most runs however for single node the events might be sent at irregular intervals.
+	// This makes it hard to determine if connection refused errors are false positives,
+	// here we collect intervals we know are acceptable for connection refused errors to occur for single node.
+	bufferInterval := []monitorapi.Interval{}
+
 	ocpAPISeverTargetDownIntervals := finalIntervals.Filter(func(eventInterval monitorapi.Interval) bool {
-		return eventInterval.Source == monitorapi.SourceAlert &&
-			eventInterval.StructuredLocator.Keys[monitorapi.LocatorAlertKey] == "TargetDown" &&
-			(eventInterval.StructuredLocator.Keys[monitorapi.LocatorNamespaceKey] == ocpAPINamespace ||
-				eventInterval.StructuredLocator.Keys[monitorapi.LocatorNamespaceKey] == ocpOAuthAPINamespace)
+
+		// If we find a graceful shutdown event, we create a buffer interval after shutdown to account
+		// for the API Server coming back up, as well as a 5 second before `from` buffer to account for a
+		// situation where the `event.from` falls exactly on the `interval.from` thus causing time.Before() logic to return false.
+		if eventInterval.Source == monitorapi.APIServerGracefulShutdown && eventInterval.Message.Reason == monitorapi.GracefulAPIServerShutdown {
+			temp := eventInterval
+			temp.Locator = monitorapi.Locator{Type: bufferSourceID, Keys: temp.Locator.Keys}
+			temp.Source = bufferSourceID
+			temp.From = eventInterval.From.Add(time.Second * -5)
+			temp.To = eventInterval.To.Add(bufferTime)
+			bufferInterval = append(bufferInterval, temp)
+		}
+
+		isTargetDownAlert := eventInterval.Source == monitorapi.SourceAlert && eventInterval.Locator.Keys[monitorapi.LocatorAlertKey] == "TargetDown"
+		identifiedSkipInterval := false
+
+		switch eventInterval.Locator.Keys[monitorapi.LocatorNamespaceKey] {
+		case ocpAPINamespace, ocpOAuthAPINamespace:
+			identifiedSkipInterval = true
+		case defaultNamespace:
+			identifiedSkipInterval = strings.Contains(eventInterval.Message.HumanMessage, "apiserver")
+		}
+
+		return isTargetDownAlert && identifiedSkipInterval
+	})
+	ocpAPISeverTargetDownIntervals = append(ocpAPISeverTargetDownIntervals, bufferInterval...)
+	sort.SliceStable(ocpAPISeverTargetDownIntervals, func(i, j int) bool {
+		return ocpAPISeverTargetDownIntervals[i].To.Before(ocpAPISeverTargetDownIntervals[j].To)
 	})
 	if len(ocpAPISeverTargetDownIntervals) > 0 {
 		logrus.Infof("found %d OCP APIServer TargetDown intervals", len(ocpAPISeverTargetDownIntervals))

@@ -91,6 +91,8 @@
 // test/extended/testdata/builds/docker-add/docker-add-env/Dockerfile
 // test/extended/testdata/builds/docker-add/docker-add-env/foo
 // test/extended/testdata/builds/incremental-auth-build.json
+// test/extended/testdata/builds/jenkins-pipeline/jenkins-ephemeral.json
+// test/extended/testdata/builds/jenkins-pipeline/jenkins-rhel.yaml
 // test/extended/testdata/builds/pullsecret/linked-nodejs-bc.yaml
 // test/extended/testdata/builds/pullsecret/pullsecret-nodejs-bc.yaml
 // test/extended/testdata/builds/s2i-environment-build-app/.s2i/environment
@@ -344,6 +346,8 @@
 // test/extended/testdata/image_ecosystem/perl-hotdeploy/index.pl
 // test/extended/testdata/image_ecosystem/perl-hotdeploy/lib/My/Test.pm
 // test/extended/testdata/image_ecosystem/perl-hotdeploy/perl.json
+// test/extended/testdata/ipsec/ipsec-nsconfig-machine-config.yaml
+// test/extended/testdata/ipsec/nmstate.yaml
 // test/extended/testdata/kernel/rt-tests-environment.yaml
 // test/extended/testdata/kernel/rt-tests-pod.yaml
 // test/extended/testdata/ldap/groupsync/ad/blacklist_ldap.txt
@@ -18511,6 +18515,492 @@ func testExtendedTestdataBuildsIncrementalAuthBuildJson() (*asset, error) {
 	return a, nil
 }
 
+var _testExtendedTestdataBuildsJenkinsPipelineJenkinsEphemeralJson = []byte(`{
+  "kind": "Template",
+  "apiVersion": "template.openshift.io/v1",
+  "metadata": {
+    "name": "jenkins-ephemeral",
+    "annotations": {
+      "openshift.io/display-name": "Jenkins (Ephemeral)",
+      "description": "Jenkins service, without persistent storage.\n\nWARNING: Any data stored will be lost upon pod destruction. Only use this template for testing.",
+      "iconClass": "icon-jenkins",
+      "tags": "instant-app,jenkins",
+      "openshift.io/long-description": "This template deploys a Jenkins server capable of managing OpenShift Pipeline builds and supporting OpenShift-based oauth login.  The Jenkins configuration is stored in non-persistent storage, so this configuration should be used for experimental purposes only.",
+      "openshift.io/provider-display-name": "Red Hat, Inc.",
+      "openshift.io/documentation-url": "https://docs.okd.io/latest/using_images/other_images/jenkins.html",
+      "openshift.io/support-url": "https://access.redhat.com"
+    }
+  },
+  "message": "A Jenkins service has been created in your project.  Log into Jenkins with your OpenShift account.  The tutorial at https://github.com/openshift/origin/blob/master/examples/jenkins/README.md contains more information about using this template.",
+  "labels": {
+    "app": "jenkins-ephemeral",
+    "template": "jenkins-ephemeral-template"
+  },
+  "objects": [
+    {
+      "kind": "Route",
+      "apiVersion": "route.openshift.io/v1",
+      "metadata": {
+        "name": "${JENKINS_SERVICE_NAME}",
+        "annotations": {
+          "template.openshift.io/expose-uri": "http://{.spec.host}{.spec.path}",
+          "haproxy.router.openshift.io/timeout": "4m"
+        }
+      },
+      "spec": {
+        "to": {
+          "kind": "Service",
+          "name": "${JENKINS_SERVICE_NAME}"
+        },
+        "tls": {
+          "termination": "edge",
+          "insecureEdgeTerminationPolicy": "Redirect"
+        }
+      }
+    },
+    {
+      "kind": "ConfigMap",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "${JENKINS_SERVICE_NAME}-trusted-ca-bundle",
+        "labels": {
+          "config.openshift.io/inject-trusted-cabundle": "true"
+        }
+      }
+    },
+    {
+      "kind": "DeploymentConfig",
+      "apiVersion": "apps.openshift.io/v1",
+      "metadata": {
+        "name": "${JENKINS_SERVICE_NAME}",
+        "annotations": {
+          "template.alpha.openshift.io/wait-for-ready": "true"
+        }
+      },
+      "spec": {
+        "strategy": {
+          "type": "Recreate"
+        },
+        "triggers": [
+          {
+            "type": "ImageChange",
+            "imageChangeParams": {
+              "automatic": true,
+              "containerNames": [
+                "jenkins"
+              ],
+              "from": {
+                "kind": "ImageStreamTag",
+                "name": "${JENKINS_IMAGE_STREAM_TAG}",
+                "namespace": "${NAMESPACE}"
+              },
+              "lastTriggeredImage": ""
+            }
+          },
+          {
+            "type": "ConfigChange"
+          }
+        ],
+        "replicas": 1,
+        "selector": {
+          "name": "${JENKINS_SERVICE_NAME}"
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "name": "${JENKINS_SERVICE_NAME}"
+            }
+          },
+          "spec": {
+            "serviceAccountName": "${JENKINS_SERVICE_NAME}",
+            "containers": [
+              {
+                "name": "jenkins",
+                "image": " ",
+                "readinessProbe": {
+                  "timeoutSeconds": 240,
+                  "initialDelaySeconds": 3,
+                  "httpGet": {
+                    "path": "/login",
+                    "port": 8080
+                  }
+                },
+                "livenessProbe": {
+                  "timeoutSeconds": 240,
+                  "periodSeconds": 360,
+                  "initialDelaySeconds": 420,
+                  "failureThreshold": 2,
+                  "httpGet": {
+                    "path": "/login",
+                    "port": 8080
+                  }
+                },
+                "env": [
+                  {
+                    "name": "OPENSHIFT_ENABLE_OAUTH",
+                    "value": "${ENABLE_OAUTH}"
+                  },
+                  {
+                    "name": "OPENSHIFT_ENABLE_REDIRECT_PROMPT",
+                    "value": "true"
+                  },
+                  {
+                    "name": "DISABLE_ADMINISTRATIVE_MONITORS",
+                    "value": "${DISABLE_ADMINISTRATIVE_MONITORS}"
+                  },
+                  {
+                    "name": "KUBERNETES_MASTER",
+                    "value": "https://kubernetes.default:443"
+                  },
+                  {
+                    "name": "KUBERNETES_TRUST_CERTIFICATES",
+                    "value": "true"
+                  },
+                  {
+                    "name": "JENKINS_SERVICE_NAME",
+                    "value": "${JENKINS_SERVICE_NAME}"
+                  },
+                  {
+                    "name": "JNLP_SERVICE_NAME",
+                    "value": "${JNLP_SERVICE_NAME}"
+                  },
+                  {
+                    "name": "JENKINS_UC_INSECURE",
+                    "value": "${JENKINS_UC_INSECURE}"
+                  },
+                  {
+                    "name": "CASC_JENKINS_CONFIG",
+                    "value": "/var/lib/jenkins/proxy.yaml"
+                  },
+                  {
+                    "name": "JAVA_FIPS_OPTIONS",
+                    "value": "${JAVA_FIPS_OPTIONS}"
+                  }
+                ],
+                "resources": {
+                  "limits": {
+                    "memory": "${MEMORY_LIMIT}"
+                  }
+                },
+                "volumeMounts": [
+                  {
+                    "name": "${JENKINS_SERVICE_NAME}-data",
+                    "mountPath": "/var/lib/jenkins"
+                  },
+                  {
+                    "name": "${JENKINS_SERVICE_NAME}-trusted-ca-bundle",
+                    "mountPath": "/etc/pki/ca-trust/source/anchors"
+                  }
+                ],
+                "terminationMessagePath": "/dev/termination-log",
+                "imagePullPolicy": "IfNotPresent",
+                "capabilities": {},
+                "securityContext": {
+                  "capabilities": {},
+                  "privileged": false
+                }
+              }
+            ],
+            "volumes": [
+              {
+                "name": "${JENKINS_SERVICE_NAME}-data",
+                "emptyDir": {
+                  "medium": ""
+                }
+              },
+              {
+                "name": "${JENKINS_SERVICE_NAME}-trusted-ca-bundle",
+                "configMap": {
+                  "name": "${JENKINS_SERVICE_NAME}-trusted-ca-bundle",
+                  "optional": true
+                }
+              }
+            ],
+            "restartPolicy": "Always",
+            "dnsPolicy": "ClusterFirst"
+          }
+        }
+      }
+    },
+    {
+      "kind": "ServiceAccount",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "${JENKINS_SERVICE_NAME}",
+        "annotations": {
+          "serviceaccounts.openshift.io/oauth-redirectreference.jenkins": "{\"kind\":\"OAuthRedirectReference\",\"apiVersion\":\"v1\",\"reference\":{\"kind\":\"Route\",\"name\":\"${JENKINS_SERVICE_NAME}\"}}"
+        }
+      }
+    },
+    {
+      "kind": "RoleBinding",
+      "apiVersion": "authorization.openshift.io/v1",
+      "metadata": {
+        "name": "${JENKINS_SERVICE_NAME}_edit"
+      },
+      "groupNames": null,
+      "subjects": [
+        {
+          "kind": "ServiceAccount",
+          "name": "${JENKINS_SERVICE_NAME}"
+        }
+      ],
+      "roleRef": {
+        "name": "edit"
+      }
+    },
+    {
+      "kind": "Service",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "${JNLP_SERVICE_NAME}"
+      },
+      "spec": {
+        "ports": [
+          {
+            "name": "agent",
+            "protocol": "TCP",
+            "port": 50000,
+            "targetPort": 50000,
+            "nodePort": 0
+          }
+        ],
+        "selector": {
+          "name": "${JENKINS_SERVICE_NAME}"
+        },
+        "type": "ClusterIP",
+        "sessionAffinity": "None"
+      }
+    },
+    {
+      "kind": "Service",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "${JENKINS_SERVICE_NAME}",
+        "annotations": {
+          "service.alpha.openshift.io/dependencies": "[{\"name\": \"${JNLP_SERVICE_NAME}\", \"namespace\": \"\", \"kind\": \"Service\"}]",
+          "service.openshift.io/infrastructure": "true"
+        }
+      },
+      "spec": {
+        "ports": [
+          {
+            "name": "web",
+            "protocol": "TCP",
+            "port": 80,
+            "targetPort": 8080,
+            "nodePort": 0
+          }
+        ],
+        "selector": {
+          "name": "${JENKINS_SERVICE_NAME}"
+        },
+        "type": "ClusterIP",
+        "sessionAffinity": "None"
+      }
+    }
+  ],
+  "parameters": [
+    {
+      "name": "JENKINS_SERVICE_NAME",
+      "displayName": "Jenkins Service Name",
+      "description": "The name of the OpenShift Service exposed for the Jenkins container.",
+      "value": "jenkins"
+    },
+    {
+      "name": "JNLP_SERVICE_NAME",
+      "displayName": "Jenkins JNLP Service Name",
+      "description": "The name of the service used for master/slave communication.",
+      "value": "jenkins-jnlp"
+    },
+    {
+      "name": "ENABLE_OAUTH",
+      "displayName": "Enable OAuth in Jenkins",
+      "description": "Whether to enable OAuth OpenShift integration. If false, the static account 'admin' will be initialized with the password 'password'.",
+      "value": "true"
+    },
+    {
+      "name": "MEMORY_LIMIT",
+      "displayName": "Memory Limit",
+      "description": "Maximum amount of memory the container can use.",
+      "value": "1Gi"
+    },
+    {
+      "name": "NAMESPACE",
+      "displayName": "Jenkins ImageStream Namespace",
+      "description": "The OpenShift Namespace where the Jenkins ImageStream resides.",
+      "value": "openshift"
+    },
+    {
+      "name": "DISABLE_ADMINISTRATIVE_MONITORS",
+      "displayName": "Disable memory intensive administrative monitors",
+      "description": "Whether to perform memory intensive, possibly slow, synchronization with the Jenkins Update Center on start.  If true, the Jenkins core update monitor and site warnings monitor are disabled.",
+      "value": "false"
+    },
+    {
+      "name": "JAVA_FIPS_OPTIONS",
+      "displayName": "Allows control over how the JVM interacts with FIPS on startup.",
+      "description": "See https://access.redhat.com/documentation/en-us/openjdk/11/html-single/configuring_openjdk_11_on_rhel_with_fips/index#config-fips-in-openjdk for the available command line properties to facilitate the JVM running on FIPS nodes.",
+      "value": "-Dcom.redhat.fips=false"
+    },
+    {
+      "name": "JENKINS_IMAGE_STREAM_TAG",
+      "displayName": "Jenkins ImageStreamTag",
+      "description": "Name of the ImageStreamTag to be used for the Jenkins image.",
+      "value": "jenkins:2"
+    },
+    {
+      "name": "JENKINS_UC_INSECURE",
+      "displayName": "Allows use of Jenkins Update Center repository with invalid SSL certificate",
+      "description": "Whether to allow use of a Jenkins Update Center that uses invalid certificate (self-signed, unknown CA). If any value other than 'false', certificate check is bypassed. By default, certificate check is enforced.",
+      "value": "false"
+    },
+    {
+      "name": "AGENT_BASE_IMAGE",
+      "displayName": "Image used for the 'jnlp' container of the sample 'java-sidecar' and 'nodejs-sidecar' PodTemplates",
+      "description": "Setting this value overrides the image used for the 'jnlp' container in the sample kubernetes plug-in PodTemplates provided with this image.  Otherwise, the image from the 'jenkins-agent-base:latest' ImageStreamTag in the 'openshift' namespace is used.",
+      "value": "image-registry.openshift-image-registry.svc:5000/openshift/jenkins-agent-base:latest"
+    },
+    {
+      "name": "JAVA_BUILDER_IMAGE",
+      "displayName": "Image used for the 'java' container of the sample 'java-builder' PodTemplate",
+      "description": "Setting this value overrides the image used for the 'java-builder' container in the sample kubernetes plug-in PodTemplates provided with this image.  Otherwise, the image from the 'java:latest' ImageStreamTag in the 'openshift' namespace is used.",
+      "value": "image-registry.openshift-image-registry.svc:5000/openshift/java:latest"
+    },
+    {
+      "name": "NODEJS_BUILDER_IMAGE",
+      "displayName": "Image used for the 'nodejs' container of the sample 'nodejs-builder' PodTemplate",
+      "description": "Setting this value overrides the image used for the 'nodejs-builder' container in the sample kubernetes plug-in PodTemplates provided with this image.  Otherwise, the image from the 'nodejs:latest' ImageStreamTag in the 'openshift' namespace is used.",
+      "value": "image-registry.openshift-image-registry.svc:5000/openshift/nodejs:latest"
+    }
+  ]
+}
+`)
+
+func testExtendedTestdataBuildsJenkinsPipelineJenkinsEphemeralJsonBytes() ([]byte, error) {
+	return _testExtendedTestdataBuildsJenkinsPipelineJenkinsEphemeralJson, nil
+}
+
+func testExtendedTestdataBuildsJenkinsPipelineJenkinsEphemeralJson() (*asset, error) {
+	bytes, err := testExtendedTestdataBuildsJenkinsPipelineJenkinsEphemeralJsonBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "test/extended/testdata/builds/jenkins-pipeline/jenkins-ephemeral.json", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _testExtendedTestdataBuildsJenkinsPipelineJenkinsRhelYaml = []byte(`kind: ImageStream
+apiVersion: image.openshift.io/v1
+metadata:
+  name: jenkins
+  annotations:
+    openshift.io/display-name: Jenkins
+spec:
+  tags:
+    - name: latest
+      annotations:
+        openshift.io/display-name: Jenkins (Latest)
+        openshift.io/provider-display-name: Red Hat, Inc.
+        description: |-
+          Provides a Jenkins server from registry.redhat.io. For more information about using this container image, including OpenShift considerations, see https://github.com/openshift/jenkins/blob/master/README.md.
+
+          WARNING: By selecting this tag, your application will automatically update to use the latest version of Jenkins available on OpenShift, including major versions updates.
+        iconClass: icon-jenkins
+        tags: jenkins
+      from:
+        kind: ImageStreamTag
+        name: "2"
+      referencePolicy:
+        type: Local
+    - name: ocp-upgrade-redeploy
+      annotations:
+        openshift.io/display-name: Jenkins (Latest)
+        openshift.io/provider-display-name: Red Hat, Inc.
+        description:
+          Provides a Jenkins 2.X server from registry.redhat.io. For more information about
+          using this container image, including OpenShift considerations, see https://github.com/openshift/jenkins/blob/master/README.md.
+          This tag will will redeploy the Jenkins DeploymentConfig on an upgrade in OCP versions if the Jenkins image reference has changed.
+        iconClass: icon-jenkins
+        tags: jenkins
+      from:
+        kind: ImageStreamTag
+        name: "2"
+      referencePolicy:
+        type: Local
+    - name: "2"
+      annotations:
+        openshift.io/display-name: Jenkins 2.X
+        openshift.io/provider-display-name: Red Hat, Inc.
+        description:
+          Provides a Jenkins 2.X server from registry.redhat.io. For more information about
+          using this container image, including OpenShift considerations, see https://github.com/openshift/jenkins/blob/master/README.md.
+          This tag will will redeploy the Jenkins DeploymentConfig on an upgrade in OCP versions if the Jenkins image reference has changed.
+        iconClass: icon-jenkins
+        tags: jenkins
+        version: 2.x
+      from:
+        kind: DockerImage
+        name: registry.redhat.io/ocp-tools-4/jenkins-rhel8:v4.13.0-1686682222
+      referencePolicy:
+        type: Local
+    - name: "user-maintained-upgrade-redeploy"
+      annotations:
+        openshift.io/display-name: Jenkins 2.X
+        openshift.io/provider-display-name: Red Hat, Inc.
+        description:
+          Provides a Jenkins 2.X server from registry.redhat.io. For more information about
+          using this container image, including OpenShift considerations, see https://github.com/openshift/jenkins/blob/master/README.md.
+          This tag will will redeploy the Jenkins DeploymentConfig on an upgrade in OCP versions if the Jenkins image reference has changed.
+          A user must invoke 'oc import-image jenkins:user-maintained-upgrade-redeploy -n openshift' in order for the ImageStream controller
+          to pull the latest digest for the image tag, and if a new digest exists, any running Jenkins DeploymentConfig will redeploy.
+        iconClass: icon-jenkins
+        tags: jenkins
+        version: 2.x
+      from:
+        kind: DockerImage
+        name: registry.redhat.io/ocp-tools-4/jenkins-rhel8:v4.13.0
+      referencePolicy:
+        type: Local
+    - name: "scheduled-upgrade-redeploy"
+      annotations:
+        openshift.io/display-name: Jenkins 2.X
+        openshift.io/provider-display-name: Red Hat, Inc.
+        description:
+          Provides a Jenkins 2.X server from registry.redhat.io. For more information about
+          using this container image, including OpenShift considerations, see https://github.com/openshift/jenkins/blob/master/README.md.
+          This tag will will redeploy the Jenkins DeploymentConfig on an upgrade in OCP versions if the Jenkins image reference has changed.
+          OpenShift will periodically check to ensure that the latest digest for this image tag is imported. If an update occurs, any running
+          Jenkins DeploymentConfig will redeploy.
+        iconClass: icon-jenkins
+        tags: jenkins
+        version: 2.x
+      from:
+        kind: DockerImage
+        name: registry.redhat.io/ocp-tools-4/jenkins-rhel8:v4.13.0
+      importPolicy:
+        scheduled: true
+      referencePolicy:
+        type: Local
+`)
+
+func testExtendedTestdataBuildsJenkinsPipelineJenkinsRhelYamlBytes() ([]byte, error) {
+	return _testExtendedTestdataBuildsJenkinsPipelineJenkinsRhelYaml, nil
+}
+
+func testExtendedTestdataBuildsJenkinsPipelineJenkinsRhelYaml() (*asset, error) {
+	bytes, err := testExtendedTestdataBuildsJenkinsPipelineJenkinsRhelYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "test/extended/testdata/builds/jenkins-pipeline/jenkins-rhel.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
 var _testExtendedTestdataBuildsPullsecretLinkedNodejsBcYaml = []byte(`kind: BuildConfig
 apiVersion: build.openshift.io/v1
 metadata:
@@ -33502,7 +33992,6 @@ os::cmd::expect_failure 'oc get imageStreams nodejs'
 os::cmd::expect_failure 'oc get imageStreams postgresql'
 os::cmd::expect_failure 'oc get imageStreams mongodb'
 os::cmd::expect_failure 'oc get imageStreams wildfly'
-os::cmd::try_until_success 'oc get imagestreamTags mariadb:10.3'
 os::cmd::try_until_success 'oc get imagestreamTags mariadb:10.5'
 os::cmd::expect_success_and_text "oc get imagestreams mysql --template='{{ index .metadata.annotations \"openshift.io/image.dockerRepositoryCheck\"}}'" '[0-9]{4}\-[0-9]{2}\-[0-9]{2}' # expect a date like YYYY-MM-DD
 os::cmd::expect_success 'oc describe istag/mysql:latest'
@@ -33528,7 +34017,7 @@ echo "imageStreams: ok"
 os::test::junit::declare_suite_end
 
 os::test::junit::declare_suite_start "cmd/images${IMAGES_TESTS_POSTFIX:-}/import-image"
-# should follow the latest reference to 10.3 and update that, and leave latest unchanged
+# should follow the latest reference to 10.5 and update that, and leave latest unchanged
 os::cmd::expect_success_and_text "oc get is/mariadb --template='{{(index .spec.tags 1).from.kind}}'" 'DockerImage'
 os::cmd::expect_success_and_text "oc get is/mariadb --template='{{(index .spec.tags 2).from.kind}}'" 'ImageStreamTag'
 os::cmd::expect_success_and_text "oc get is/mariadb --template='{{(index .spec.tags 2).from.name}}'" '10.5'
@@ -33541,7 +34030,7 @@ os::cmd::expect_success_and_text "oc get is/mariadb --template='{{(index .spec.t
 os::cmd::expect_failure_and_text 'oc import-image mariadb --from=quay.io/openshifttest/hello-openshift:openshift' "use the 'tag' command if you want to change the source"
 os::cmd::expect_success 'oc describe is/mariadb'
 # import existing tag (explicit)
-os::cmd::expect_success_and_text 'oc import-image mariadb:10.3' "sha256:"
+os::cmd::expect_success_and_text 'oc import-image mariadb:10.5' "sha256:"
 os::cmd::expect_success_and_text 'oc import-image mariadb:latest' "sha256:"
 # import existing image stream creating new tag
 os::cmd::expect_success_and_text 'oc import-image mariadb:external --from=quay.io/openshifttest/hello-openshift:openshift' "sha256:"
@@ -33603,23 +34092,23 @@ os::cmd::expect_success_and_text "oc get istag/mariadb:labeled -o jsonpath='{.me
 # test copying tags
 os::cmd::expect_success 'oc tag quay.io/openshift/origin-cli:4.6 newrepo:latest'
 os::cmd::expect_success_and_text "oc get is/newrepo --template='{{(index .spec.tags 0).from.kind}}'" 'DockerImage'
-os::cmd::try_until_success 'oc get istag/mariadb:10.3'
+os::cmd::try_until_success 'oc get istag/mariadb:10.5'
 # default behavior is to copy the current image, but since this is an external image we preserve the dockerImageReference
-os::cmd::expect_success 'oc tag mariadb:10.3 newrepo:latest'
+os::cmd::expect_success 'oc tag mariadb:10.5 newrepo:latest'
 os::cmd::expect_success_and_text "oc get is/newrepo --template='{{(index .spec.tags 0).from.kind}}'" 'ImageStreamImage'
-os::cmd::expect_success_and_text "oc get is/newrepo --template='{{(index .status.tags 0 \"items\" 0).dockerImageReference}}'" '^quay.io/centos7/mariadb-103-centos7@sha256:'
+os::cmd::expect_success_and_text "oc get is/newrepo --template='{{(index .status.tags 0 \"items\" 0).dockerImageReference}}'" '^quay.io/centos7/mariadb-105-centos7@sha256:'
 # when copying a tag that points to the internal registry, update the container image reference
 #os::cmd::expect_success "oc tag test:new newrepo:direct"
 #os::cmd::expect_success_and_text 'oc get istag/newrepo:direct -o jsonpath={.image.dockerImageReference}' "/$project/newrepo@sha256:"
 # test references
-os::cmd::expect_success 'oc tag mariadb:10.3 reference:latest --reference'
+os::cmd::expect_success 'oc tag mariadb:10.5 reference:latest --reference'
 os::cmd::expect_success_and_text "oc get is/reference --template='{{(index .spec.tags 0).from.kind}}'" 'ImageStreamImage'
 os::cmd::expect_success_and_text "oc get is/reference --template='{{(index .spec.tags 0).reference}}'" 'true'
 # create a second project to test tagging across projects
 os::cmd::expect_success 'oc new-project test-cmd-images-2'
-os::cmd::expect_success "oc tag $project/mariadb:10.3 newrepo:latest"
+os::cmd::expect_success "oc tag $project/mariadb:10.5 newrepo:latest"
 os::cmd::expect_success_and_text "oc get is/newrepo --template='{{(index .spec.tags 0).from.kind}}'" 'ImageStreamImage'
-os::cmd::expect_success_and_text 'oc get istag/newrepo:latest -o jsonpath={.image.dockerImageReference}' 'quay.io/centos7/mariadb-103-centos7@sha256:'
+os::cmd::expect_success_and_text 'oc get istag/newrepo:latest -o jsonpath={.image.dockerImageReference}' 'quay.io/centos7/mariadb-105-centos7@sha256:'
 # tag across projects without specifying the source's project
 os::cmd::expect_success_and_text "oc tag newrepo:latest '${project}/mariadb:tag1'" "mariadb:tag1 set to"
 os::cmd::expect_success_and_text "oc get is/newrepo --template='{{(index .spec.tags 0).name}}'" "latest"
@@ -44989,6 +45478,98 @@ func testExtendedTestdataImage_ecosystemPerlHotdeployPerlJson() (*asset, error) 
 	return a, nil
 }
 
+var _testExtendedTestdataIpsecIpsecNsconfigMachineConfigYaml = []byte(`# Generated by Butane; do not edit
+apiVersion: machineconfiguration.openshift.io/v1
+kind: MachineConfig
+metadata:
+  labels:
+    machineconfiguration.openshift.io/role: worker
+  name: 99-worker-north-south-ipsec-config
+spec:
+  config:
+    ignition:
+      version: 3.4.0
+    storage:
+      files:
+        - contents:
+            compression: gzip
+            source: data:;base64,H4sIAAAAAAAC/2TTOdOyTBYG4Jxf0bk1hbLKV/UETXeD7LSgiJkgsgrKqvz6qeedqgne70TnXMG5o1u95QCOY18m05gNDAAAPPoya+/N1709s38Agn+w6dJbY2VfA/8DRAUIAhBFoGhAJUDigLYF3BbIKtjugCIDEQFVBgoP9grQtN8FawApQOUAM0xJlaXjD3LBz+/zchimrP//+Z/fUYluuACRY2hoBoIh+aOMYxioWRGCl00OF0OFuaFBxxLLsl4wjU2ruxrFnLqQElulcMEhsR1Y63B3IvDjIIZuyXIoUtep6OJi8nFwvDqV8Yl+bf3LKug6dFgQjfGZUkwWEzM0RAgGxt9pqkohznPiQ4wQpB3Kc6JCWz5zgmLf9i/zZUu9Ng0e06W2jJ7U4NpqUxiPoHDVbjQ/Se5KL9aRlOBqzKckjyof8oeR3wgTOh7Ghxc/ycMd5Iw5wjBEKi73nmDC9CzOUSsUrz5R+gHziNWFaVsd+ZY97d96M73O3e7eyl894D/ivRW9lCFpI30FKWlziK0wtYU21RaDjaqUYvKYVmcO0Tftj81lz40J6zR2pMSD5WuG4M3CujCzOISXPI3Z72zvheHw7c+rv1HLUtE5rEfXemxxnZnBWKuFhOvn/nWBukj8HV2LOdBEZoo6ao8Unh7Xfgiu7ChNvugX8BJbu+PY4DLlC6c7VNe1ImMhitmtrHYX61wcxs3FMQhjrQTBhUAYQlfN63dRl7qybFVIBw1CD0FKYMCj4xi3hkJumlEM92yVbo9oTCr7WzLyK6yXB9tMLeeYmhn1yvzOY1UictwEbOFm3EtfuYYGdf/2Oy5v5G7SI0TWyOTuj55jnMSnKxt61uFITv3He505m8tR+j2929MpmqdFi6T3hEzp6UWpLV3fmRWd09o6fE/2/LkxfutFz85Udp4rjnKg17BLNnu+osfH54bM/BbuNPwR0rYPhvtVKfY6ir3vfSuYlygRWZcpnVnF7HojgpK/YT6J6vaYi893jJ3pPuxEEvd1mYutdq2uWrb3T5cmmj2MVDnlrF09M/qinHZKmMtbPbLmbCvZFuvcEZsi1xB4Pn/Rt32enIH3OaM1NzTdmElBdlqx/Pz8r6XExf/u6H8DAAD//zcw/5BQBAAA
+          mode: 256
+          overwrite: true
+          path: /etc/pki/certs/ca.pem
+        - contents:
+            compression: gzip
+            source: data:;base64,H4sIAAAAAAAC/4SVeTQUjrvGZ5ixb1kGWRpE1gxjGSYJyTJEyBplGURki5JlGusYZRtDY0/JEpKdlH3Jvu8M0SBbsi+55/e73/P93nvuvec+f7znvM/7vP9+HhiGCkgNw9DQS0bqRh4wA2mB2ZjLGBCWKQqG+V9s8BsYFpwJw4JJNIx/nZgYgFTZWDAShgUrw+z//gAzw8xg8H9WJpgYiI3/2oC+wETmLXW1fZjdXAuRipr+SiMVEApjoKH7zyAVPUyAhv5BpC4QTQ0CSoLYNLTCQMkddz+7CLZ43+HYKANhQQNdluDxHvtXxujHCUtZDmQXuTsquV5M/HPzACjwhWJTl8GzqK9Swc/KzvPc0IuqqVH5EqeWZkd56u1BGKfiAGl2/ird4ydFlOjDqqx+2YPYQx6ZxGrt6hKFQl6X7QeCyOraOmiDEyjvodZUwloac6X/p4MCxfBrjhtqWXe6Q1qvmG8hQ7IiryQtntQMd6AOBTe0qU0NZxkSWPiJ/S64TlH1SuxePl84o4diHIxP/5hLQ4r++a7cnxKhYdEtQR6rDKdTVeAaoU0IVDmZV1URejdfwe2Sm85oYluV23568VAPIGXT33GZt0yfdwvxPUXKlSSCqy6CpO857YToZqsZpIHT9CnXwlk4tKf9qMv0AnalJ5PtWhoDoKgIVbowUVeew2dhduR4tTvLvlnO++piCBeuSpB1oy43n+f7hautKznECYswL7kXboTGrV/PsASf7n7CLW9laQtLXG3PAqpCI0LSeeeiF+ejZMnsmxAiN7uphMPOCYu2h4XzAAQn1lRrEC+Xs6vftC2Vcy247fYswyeAaMf49K3X8DOsaCkk50dxkxBaB3mjcCvESjXG3DHztX0iu/q+6XwcOxSnm1FCVnn0O4nj3R7RsPt3CS3utUps+VypOKlJ1I7jEkBgxmJ01bY6SpnI3wKoUslpbSlp10lSaoEo6Ju357OS3lPxCoSihKpq0JaPQdZNqLs5cuFtm0+Ck2Rdr5hGYZu/0Sx1bTLOdoc+/LagfqPo4e9qVnTQNFAxzsRonIEQ9utCGpUrMdzwKN2rc+Wn67BgPSsFYsZn6SXSJ/ggnX0TxBub2PXiI2EDYoChFcLo4a0vq0GXr7Y5xnI27q4m7xvnzSYSP2fAm8lZvmvbYylCAwSUz8sabavej4cpM9xMENFu2KBss40ywCYp8zHSxXlO02/1m0lERVw7TlzGRfno+uI9MWAiyoQFT7Vc6f1MtytGV+syc41N7mjd3Bqebsn2Z8kaljRSyFcydD55VQS+jTa1OhcXsnWnq7HuoVuTOK+rN26+yM3U0QW4mKyZJfoDgjq7+IVDeuG5lZU4mzIbuDxaYNmdPvSTT3aGkc2pu3VqHP2CZktnlynNq5zZVR/mkGbherovlGeVct7RDHkMJ4dZwj+/Dm9M7dHrX5x4kJK7/jISobzc5jU125eBDM1MR50O5ZsQDD/JH9B/ZY12uhI9frfBRCXupZj28SzYP6Hs8HcSkV6j5VPm2Wiy21l5tucHQe+qxX6r/N3k0wyXwO4Nt3ztkw/M+zjh5+Rpnzv4mMdSOqyIMe0DeETyPCcN00j/9bMffIFjnU4SiG33Az690l6lmToVeftpgRAr1NKz+r15wawvwo0j7+/crzvVEvMKOpCoS5BWGlH9bDkXeqJEcq8nYmi0r5Am5HXJIeRc0CmLtLzQcad36FZPi1rp70oeteh1LRIY131btQn+qq2un2921Y1NgYVtUoOruqrN7l1qPDBNFWsb1Hm+/alA54cK6VHZ0EqvZ9SV6DpFxFJYndcKxC3TBanDS45KDGJZLd5ybBo/U+HVE6tV/vSL4ewsvoxZgZ+xj0X2dgS7+GRCtT5ku8bP7anZkxd0vAk44vRncqrtdwSxLEHmnU0z7pAoQIDd9fQpOW9ffCNe+3wgPNdUzgAm+jcp6TnleAQhgEcANMAZ4Ae4D/AFoAE+AP9/TZjIPzEuOQiIc/YdhrFW5jDiWsAk8nsnE7rk+eMjwL/1X+FNk435F+f/mwf8/1jNzK4j8m6xJYi+rymrPll66i9Ws/1frKYCsV3n2LdTPHc6ET0ZnIi9ODCVjQFhaaB3YmuHoLFOaSs51hYLstWhwLXaMOXXpYq66N0++dUgJ8536qUxO/BrI269SAfr3ZcZhmk3XxmYLhb8jNX8bjMmzEmr4QTpdaQkhn5xTzHEd2Z0Jxa9ZoW37UUOsa6/4YP/ScNacX8biP5cmd83RS4of7QUa/PxK6VH0RGmVbdfrN+JgCA7xNyq1o6HR7EvLtR4BLkmfT2W9qXvLKGEO6w0+vH1R5P4jd6bwdTg0gVFD/CmNZzBJwiuH/Nj6PZOf+p+jhxNVZEy9NuwX47qVhFgz97leJZt8lWhLZzmdaeZOez50Onm/Fi5EcisdD3gM+Xo+nLz+DE62KcogmNiPZAwPlqSgCe85TKhFTVapeXNGoFG83B77PsKt+Fk4w3yzroUcnOM5HV21OlYObg4PfhVDZASTeGxtjcKwzGOADM2r12EWUGkaud5WzbELH3omampoKiUKuU9HStLr+W9GbupfCGlsRs6CtCbXfoNM5vuMVReMiqvEU8XBfG7lLUxn74kjsm9N4vDIi/hSa3Ocdtvb+WKTuvEBfqWzUeLG7beX0qVfKwC6wiJIkmp2wmahLXRvzXr0g6fSBv3V6tQs354mHbZH54GiFqzFVgwtHz+5r6Me4V5obuTp/4HPgLvtJ9TxmthzFYK3dpM36ESNJ/tyET9Klsmd6HPQyiCKEncfCrCiyJ47Q0uuDxV0C06H+Q2bq8zh6LYiZZ6343xnBabm3FaphfWNX6ynef2oJmzXJlbn8TDj0uLnA5wkYYyybJHlYArzXuDaxvG/Caak86bRyUtCAmpbEMZ3T+JUqC5z3f9O8M1D3SGRe1RHReYcV2nrzyQhMMVWVNG2VRb5vUCuUAby7D8BrIvlNBBlEtoLEZK2TtJNhRqBmql3whftFCte3hMwp+iIJPsb1LY+Ge/xcSC5WVkTyFGkxw5zMcjZn+aKN3FJ82j8L0E6vbcldxej+NeNVdmuTKthNXQl7Uj5CalwRgmo5i0aVHGBmTgqjAR7n+pymwrlLGWd0HXrAGkZsjfY1tcrBem+hG93zso/spm4CTQDxd/b6ei2vNIzBh/EtYSuG2aAG+5sBMzqKsHHJj4MKrlKGm07Y8YYJW/zygp7KGBfOtJpadWXdq1mUMp39RpZr561WAWXOdn5+DWvZOopi8Af7dvf+nXUjWB2hG/xL5ZbZNOOuzMDe/7sXpbpzxe29nrMPKMUQRojDS+rWloUPlEXiH53ihG2X6xRxzk7ndUqje76BB0s6jeXOYqT3vS0AjyvTRu2GaNd4FoecnTiC/AdmSUE3cAfZHC/nKeIR/DV8OVCprLnzmKC8O0D1um9tsMohpR3ifsj+aF5gvIDYiUnhDfKK/Bpj6SniOwMfh3R6sXKdEm4RaX6PVYRpAKObjBh+zg9wFvUeBsLr2R56S6dthGt/J4spXa+GAaMXOYMK/BeSeGNOZ7b+7JEzwXfbJZu6+IxyhlS7OfPXMkuayksOFXhCE/YICecPvktBumPuAJ/cCQ0kMbpORz0zNhk+xqMG/fdbcVHm3eRFMh0VKh4X9J+XGIyuVRm5AHYRwlZ6OoP7rmS8GOa1z9AhwuXPU+dH14T3qpTSz3F3NKIOVm8/qfPi5QpqSJvDT0PdSbJzdx+2R5YBUXNnOzLFAnAgzvYkKv1V33nq8H7Yw+pOxcOPchPdJWOG0W/X5p98eTPWJD+e7212jlB2eC+oGsYhS8DLNYCLp6azeunPLt6UnN9fcB3yzvqef0JiY7YC+nNN54GhOFyB06619XEqdsyBeeVrEqXFqv1zBFAr7UItpSDryAqR7xhPMLX94VUTPsNlzbHtfPwMItA+5ldOfkfzywHwg4ftt9S6xXtQSfyTMZhWWUumGnr7xITqoS0Q9rxqtvPlWv6JMqFJjaNbt4seu3CckiTzn+U7Y3BmRz4rD0aIOCEt6smepdfK6dLijZMwZ7c4bUFJuYdNNhkRxc74qm9XUXkzDuE2IQTB3qYe3VhTQe5TJVVYA34NGe3Phh1v5fNYKHNqkKe/yq5DoOANdkck8yQsGMUyrSet+GeGsx+TsuS21dnBx7HNYUvyJUu7j6Ov12J4gtP0qiFzSZezz1A1fqy9AaDPgfgunD5GDMf5cNFRAMAEFpr80s2H+DZ34Wv5FPQ1LkqKLBeDvCvk4H5sVxfOhGpYHYYhiL1lmAtOUiLQryYFRd7b87DAD4jwAAAP//Yjvm6PUMAAA=
+          mode: 256
+          overwrite: true
+          path: /etc/pki/certs/left_server.p12
+        - contents:
+            compression: gzip
+            source: data:;base64,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
+          mode: 256
+          overwrite: true
+          path: /etc/pki/certs/right_server.p12
+        - contents:
+            compression: gzip
+            source: data:;base64,H4sIAAAAAAAC/5zOPW6EMBAF4J5TTCatzQhugFwnDZFSRuBMYAQYyz+cP2JpKBbtasuR5r33vb9RL476Lo6guWA7roCy+DUkcQNYDgnSCp9ti8V+5CQz6Aa0AzQNgk6A5ksZZRD0L9DWBZqlJ/GRLbkYCbQAcbLkJ6G9IpLtSs9L4aeqPvq+AfHO38x/6Sdy2DiUvqovBk6uj5vrFDuAWWWVr3yPGUGG8RXHOfcM5D8AAP//8sHozowBAAA=
+          mode: 480
+          overwrite: true
+          path: /usr/local/bin/ipsec-addcert.sh
+    systemd:
+      units:
+        - contents: |
+            [Unit]
+            Description=Import external certs into ipsec NSS
+            Before=ipsec.service
+
+            [Service]
+            Type=oneshot
+            ExecStart=/usr/local/bin/ipsec-addcert.sh
+            RemainAfterExit=false
+            StandardOutput=journal
+
+            [Install]
+            WantedBy=multi-user.target
+          enabled: true
+          name: ipsec-import.service
+`)
+
+func testExtendedTestdataIpsecIpsecNsconfigMachineConfigYamlBytes() ([]byte, error) {
+	return _testExtendedTestdataIpsecIpsecNsconfigMachineConfigYaml, nil
+}
+
+func testExtendedTestdataIpsecIpsecNsconfigMachineConfigYaml() (*asset, error) {
+	bytes, err := testExtendedTestdataIpsecIpsecNsconfigMachineConfigYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "test/extended/testdata/ipsec/ipsec-nsconfig-machine-config.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
+var _testExtendedTestdataIpsecNmstateYaml = []byte(`apiVersion: nmstate.io/v1
+kind: NMState
+metadata:
+  name: nmstate
+`)
+
+func testExtendedTestdataIpsecNmstateYamlBytes() ([]byte, error) {
+	return _testExtendedTestdataIpsecNmstateYaml, nil
+}
+
+func testExtendedTestdataIpsecNmstateYaml() (*asset, error) {
+	bytes, err := testExtendedTestdataIpsecNmstateYamlBytes()
+	if err != nil {
+		return nil, err
+	}
+
+	info := bindataFileInfo{name: "test/extended/testdata/ipsec/nmstate.yaml", size: 0, mode: os.FileMode(0), modTime: time.Unix(0, 0)}
+	a := &asset{bytes: bytes, info: info}
+	return a, nil
+}
+
 var _testExtendedTestdataKernelRtTestsEnvironmentYaml = []byte(`kind: Project
 apiVersion: project.openshift.io/v1
 metadata:
@@ -50647,9 +51228,11 @@ items:
       dockerfile: |
         FROM quay.io/openshift/origin-cli:latest
         WORKDIR /var/lib/origin
-        RUN yum config-manager \
-            --add-repo 'https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi8/8/$basearch/baseos/os/' \
-            --add-repo 'https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi8/8/$basearch/appstream/os/'
+        RUN source /etc/os-release \
+            && rhel_major=${VERSION_ID%.*} \
+            && yum config-manager \
+            --add-repo "https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi${rhel_major}/${rhel_major}/\$basearch/baseos/os/" \
+            --add-repo "https://cdn-ubi.redhat.com/content/public/ubi/dist/ubi${rhel_major}/${rhel_major}/\$basearch/appstream/os/"
         RUN yum install -y skopeo && \
             yum clean all && mkdir -p gnupg && chmod -R 0777 /var/lib/origin
         RUN echo $'%echo Generating openpgp key ...\n\
@@ -52634,78 +53217,78 @@ var _e2echartE2eChartTemplateHtml = []byte(`<html lang="en">
     });
 
     function isOperatorAvailable(eventInterval) {
-        return eventInterval.tempStructuredLocator.type === "ClusterOperator" &&
-            eventInterval.tempStructuredMessage.annotations["condition"] === "Available" &&
-            eventInterval.tempStructuredMessage.annotations["status"] === "False";
+        return eventInterval.locator.type === "ClusterOperator" &&
+            eventInterval.message.annotations["condition"] === "Available" &&
+            eventInterval.message.annotations["status"] === "False";
     }
 
     function isOperatorDegraded(eventInterval) {
-        return eventInterval.tempStructuredLocator.type === "ClusterOperator" &&
-            eventInterval.tempStructuredMessage.annotations["condition"] === "Degraded" &&
-            eventInterval.tempStructuredMessage.annotations["status"] === "True";
+        return eventInterval.locator.type === "ClusterOperator" &&
+            eventInterval.message.annotations["condition"] === "Degraded" &&
+            eventInterval.message.annotations["status"] === "True";
     }
 
     function isOperatorProgressing(eventInterval) {
-        return eventInterval.tempStructuredLocator.type === "ClusterOperator" &&
-            eventInterval.tempStructuredMessage.annotations["condition"] === "Progressing" &&
-            eventInterval.tempStructuredMessage.annotations["status"] === "True";
+        return eventInterval.locator.type === "ClusterOperator" &&
+            eventInterval.message.annotations["condition"] === "Progressing" &&
+            eventInterval.message.annotations["status"] === "True";
     }
 
     // When an interval in the openshift-etcd namespace had a reason of LeaderFound, LeaderLost,
-    // LeaderElected, or LeaderMissing, tempSource was set to 'EtcdLeadership'.
+    // LeaderElected, or LeaderMissing, source was set to 'EtcdLeadership'.
     function isEtcdLeadership(eventInterval) {
-        return eventInterval.tempSource === 'EtcdLeadership';
+        return eventInterval.source === 'EtcdLeadership';
 
     }
 
     function isPodLog(eventInterval) {
-        if (eventInterval.tempSource === 'PodLog') {
+        if (eventInterval.source === 'PodLog') {
             return true
         }
-        return eventInterval.tempSource === 'EtcdLog';
+        return eventInterval.source === 'EtcdLog';
 
     }
 
     function isInterestingOrPathological(eventInterval) {
-        return eventInterval.tempSource === 'KubeEvent' && eventInterval.tempStructuredMessage.annotations["pathological"] === "true";
+        return eventInterval.source === 'KubeEvent' && eventInterval.message.annotations["pathological"] === "true";
     }
 
     function isE2EFailed(eventInterval) {
-        if (eventInterval.tempSource === "E2ETest" && eventInterval.tempStructuredMessage.annotations["status"] === "Failed") {
+        if (eventInterval.source === "E2ETest" && eventInterval.message.annotations["status"] === "Failed") {
             return true
         }
         return false
     }
 
     function isE2EFlaked(eventInterval) {
-        if (eventInterval.tempSource === "E2ETest" && eventInterval.tempStructuredMessage.annotations["status"] === "Flaked") {
+        if (eventInterval.source === "E2ETest" && eventInterval.message.annotations["status"] === "Flaked") {
             return true
         }
         return false
     }
 
     function isE2EPassed(eventInterval) {
-        if (eventInterval.tempSource === "E2ETest" && eventInterval.tempStructuredMessage.annotations["status"] === "Passed") {
+        if (eventInterval.source === "E2ETest" && eventInterval.message.annotations["status"] === "Passed") {
             return true
         }
         return false
     }
 
     function isGracefulShutdownActivity(eventInterval) {
-        return (eventInterval.tempSource === "APIServerGracefulShutdown")
+        return (eventInterval.source === "APIServerGracefulShutdown")
     }
 
     function isEndpointConnectivity(eventInterval) {
-        if (eventInterval.tempStructuredMessage.reason !== "DisruptionBegan" && eventInterval.tempStructuredMessage.reason !== "DisruptionSamplerOutageBegan") {
+        if (eventInterval.message.reason !== "DisruptionBegan" && eventInterval.message.reason !== "DisruptionSamplerOutageBegan") {
             return false
         }
-        if (eventInterval.tempSource === "Disruption") {
+        if (eventInterval.source === "Disruption") {
             return true
         }
-        if (eventInterval.tempStructuredLocator.keys["namespace"] === "e2e-k8s-service-lb-available") {
+        if (eventInterval.locator.keys["namespace"] === "e2e-k8s-service-lb-available") {
             return true
         }
-        if (eventInterval.tempStructuredLocator.keys.has("route")) {
+        if (eventInterval.locator.keys.has("route")) {
             return true
         }
 
@@ -52713,72 +53296,72 @@ var _e2echartE2eChartTemplateHtml = []byte(`<html lang="en">
     }
 
     function isNodeState(eventInterval) {
-        return eventInterval.tempSource === "NodeState"
+        return eventInterval.source === "NodeState"
     }
 
     function isCloudMetrics(eventInterval) {
-        return eventInterval.tempSource === "CloudMetrics";
+        return eventInterval.source === "CloudMetrics";
     }
 
     function isAlert(eventInterval) {
-        return eventInterval.tempSource === "Alert"
+        return eventInterval.source === "Alert"
     }
 
     function pathologicalEvents(item) {
-        if (item.tempStructuredMessage.annotations["pathological"] === "true") {
-            if (item.tempStructuredMessage.annotations["interesting"] === "true") {
-                return [buildLocatorDisplayString(item.tempStructuredLocator), ` + "`" + ` (pathological known)` + "`" + `, "PathologicalKnown"];
+        if (item.message.annotations["pathological"] === "true") {
+            if (item.message.annotations["interesting"] === "true") {
+                return [buildLocatorDisplayString(item.locator), ` + "`" + ` (pathological known)` + "`" + `, "PathologicalKnown"];
             } else {
-                return [buildLocatorDisplayString(item.tempStructuredLocator), ` + "`" + ` (pathological new)` + "`" + `, "PathologicalNew"];
+                return [buildLocatorDisplayString(item.locator), ` + "`" + ` (pathological new)` + "`" + `, "PathologicalNew"];
             }
         }
         // TODO: hack that can likely be removed when we get to structured intervals for these
         // Always show pod sandbox events even if they didn't make it to pathological
-        if (item.tempStructuredMessage.annotations["interesting"] === "true" && item.tempStructuredMessage.humanMessage.includes("pod sandbox")) {
-            return [buildLocatorDisplayString(item.tempStructuredLocator), ` + "`" + ` (pod sandbox)` + "`" + `, "PodSandbox"];
+        if (item.message.annotations["interesting"] === "true" && item.message.humanMessage.includes("pod sandbox")) {
+            return [buildLocatorDisplayString(item.locator), ` + "`" + ` (pod sandbox)` + "`" + `, "PodSandbox"];
         }
 	}
 
     function podLogs(item) {
         if (item.level == "Warning") {
-            return [buildLocatorDisplayString(item.tempStructuredLocator), ` + "`" + ` (pod log)` + "`" + `, "PodLogWarning"];
+            return [buildLocatorDisplayString(item.locator), ` + "`" + ` (pod log)` + "`" + `, "PodLogWarning"];
         }
         if (item.level == "Error") {
-            return [buildLocatorDisplayString(item.tempStructuredLocator), ` + "`" + ` (pod log)` + "`" + `, "PodLogError"];
+            return [buildLocatorDisplayString(item.locator), ` + "`" + ` (pod log)` + "`" + `, "PodLogError"];
         }
-        return [buildLocatorDisplayString(item.tempStructuredLocator), ` + "`" + ` (pod log)` + "`" + `, "PodLogInfo"];
+        return [buildLocatorDisplayString(item.locator), ` + "`" + ` (pod log)` + "`" + `, "PodLogInfo"];
     }
 
 
     const rePhase = new RegExp("(^| )phase/([^ ]+)")
     function nodeStateValue(item) {
         let roles = ""
-        if (item.tempStructuredMessage.annotations.hasOwnProperty('roles')) {
-            roles = item.tempStructuredMessage.annotations.roles
+        if (item.message.annotations.hasOwnProperty('roles')) {
+            roles = item.message.annotations.roles
         }
 
-        if (item.tempStructuredMessage.reason === 'NotReady') {
-            return [buildLocatorDisplayString(item.tempStructuredLocator), ` + "`" + ` (${roles})` + "`" + `, "NodeNotReady"]
+        if (item.message.reason === 'NotReady') {
+            return [buildLocatorDisplayString(item.locator), ` + "`" + ` (${roles})` + "`" + `, "NodeNotReady"]
         }
-        let m = item.tempStructuredMessage.annotations.phase;
-        return [buildLocatorDisplayString(item.tempStructuredLocator), ` + "`" + ` (${roles})` + "`" + `, m];
+        let m = item.message.annotations.phase;
+        return [buildLocatorDisplayString(item.locator), ` + "`" + ` (${roles})` + "`" + `, m];
     }
 
     function etcdLeadershipLogsValue(item) {
 
         // If source is isEtcdLeadership, the term is always there.
-        const term = item.tempStructuredMessage.annotations['term']
+        const term = item.message.annotations['term']
 
         // We are only charting the intervals with a node.
-        const nodeVal = item.tempStructuredLocator.keys['node']
+        const nodeVal = item.locator.keys['node']
 
         // Get etcd-member value (this will be present for a leader change).
-        let etcdMemberVal = item.tempStructuredLocator.keys['etcd-member'] || ''
+        let etcdMemberVal = item.locator.keys['etcd-member'] || ''
         if (etcdMemberVal.length > 0) {
             etcdMemberVal = ` + "`" + `etcd-member/${etcdMemberVal} ` + "`" + `
         }
 
-        let reason = item.tempStructuredMessage.reason
+        let reason = item.message.reason
         let color = 'EtcdOther'
         if (reason.length > 0) {
             color = reason
@@ -52788,52 +53371,52 @@ var _e2echartE2eChartTemplateHtml = []byte(`<html lang="en">
     }
 
     function cloudMetricsValue(item) {
-        return [buildLocatorDisplayString(item.tempStructuredLocator), "", "CloudMetric"];
+        return [buildLocatorDisplayString(item.locator), "", "CloudMetric"];
     }
 
     function alertSeverity(item) {
         // the other types can be pending, so check pending first
-        if (item.tempStructuredMessage.annotations["alertstate"] === "pending") {
-            return [buildLocatorDisplayString(item.tempStructuredLocator), "", "AlertPending"]
+        if (item.message.annotations["alertstate"] === "pending") {
+            return [buildLocatorDisplayString(item.locator), "", "AlertPending"]
         }
 
-        if (item.tempStructuredMessage.annotations["severity"] === "info") {
-            return [buildLocatorDisplayString(item.tempStructuredLocator), "", "AlertInfo"]
+        if (item.message.annotations["severity"] === "info") {
+            return [buildLocatorDisplayString(item.locator), "", "AlertInfo"]
         }
-        if (item.tempStructuredMessage.annotations["severity"] === "warning") {
-            return [buildLocatorDisplayString(item.tempStructuredLocator), "", "AlertWarning"]
+        if (item.message.annotations["severity"] === "warning") {
+            return [buildLocatorDisplayString(item.locator), "", "AlertWarning"]
         }
-        if (item.tempStructuredMessage.annotations["severity"] === "critical") {
-            return [buildLocatorDisplayString(item.tempStructuredLocator), "", "AlertCritical"]
+        if (item.message.annotations["severity"] === "critical") {
+            return [buildLocatorDisplayString(item.locator), "", "AlertCritical"]
         }
 
         // color as critical if nothing matches so that we notice that something has gone wrong
-        return [buildLocatorDisplayString(item.tempStructuredLocator), "", "AlertCritical"]
+        return [buildLocatorDisplayString(item.locator), "", "AlertCritical"]
     }
 
     function apiserverDisruptionValue(item) {
         // TODO: isolate DNS error into CIClusterDisruption
-        return [buildLocatorDisplayString(item.tempStructuredLocator), "", "Disruption"]
+        return [buildLocatorDisplayString(item.locator), "", "Disruption"]
     }
 
     function apiserverShutdownValue(item) {
         // TODO: isolate DNS error into CIClusterDisruption
-        return [buildLocatorDisplayString(item.tempStructuredLocator), "", "GracefulShutdownInterval"]
+        return [buildLocatorDisplayString(item.locator), "", "GracefulShutdownInterval"]
     }
 
     function disruptionValue(item) {
         // We classify these disruption samples with this message if it thinks
         // it looks like a problem in the CI cluster running the tests, not the cluster under test.
         // (typically DNS lookup problems)
-        if (item.tempStructuredMessage.reason === "DisruptionSamplerOutageBegan") {
-            return [buildLocatorDisplayString(item.tempStructuredLocator), "", "CIClusterDisruption"]
+        if (item.message.reason === "DisruptionSamplerOutageBegan") {
+            return [buildLocatorDisplayString(item.locator), "", "CIClusterDisruption"]
         }
-        return [buildLocatorDisplayString(item.tempStructuredLocator), "", "Disruption"]
+        return [buildLocatorDisplayString(item.locator), "", "Disruption"]
     }
 
     function apiserverShutdownEventsValue(item) {
         // TODO: isolate DNS error into CIClusterDisruption
-        return [buildLocatorDisplayString(item.tempStructuredLocator), "", "GracefulShutdownWindow"]
+        return [buildLocatorDisplayString(item.locator), "", "GracefulShutdownWindow"]
     }
 
     function getDurationString(durationSeconds) {
@@ -52848,11 +53431,11 @@ var _e2echartE2eChartTemplateHtml = []byte(`<html lang="en">
     }
 
     function defaultToolTip(item) {
-        if (!item.tempStructuredMessage || !item.tempStructuredMessage.annotations) {
+        if (!item.message || !item.message.annotations) {
             return '';
         }
 
-        const structuredMessage = item.tempStructuredMessage;
+        const structuredMessage = item.message;
         const annotations = structuredMessage.annotations;
 
         const keyValuePairs = Object.entries(annotations).map(([key, value]) => {
@@ -52865,8 +53448,8 @@ var _e2echartE2eChartTemplateHtml = []byte(`<html lang="en">
         if ('display' in item) {
             tt = "display/" + item.display + " " + tt
         }
-        if ('tempSource' in item) {
-            tt = "source/" + item.tempSource + " " + tt
+        if ('source' in item) {
+            tt = "source/" + item.source + " " + tt
         }
         tt = tt + " " + getDurationString(((new Date(item.to)).getTime() - (new Date(item.from).getTime()))/1000);
         return tt
@@ -52958,7 +53541,7 @@ var _e2echartE2eChartTemplateHtml = []byte(`<html lang="en">
             if (!item.to) {
                 endDate = latest
             }
-            let label = buildLocatorDisplayString(item.tempStructuredLocator)
+            let label = buildLocatorDisplayString(item.locator)
             let sub = ""
             let val = timelineVal
             if (typeof val === "function") {
@@ -52999,7 +53582,7 @@ var _e2echartE2eChartTemplateHtml = []byte(`<html lang="en">
         if (isEtcdLeadership(item)) {
 
             // Don't chart the ones where the node is empty.
-            const node = item.tempStructuredLocator.keys['node'] || ''
+            const node = item.locator.keys['node'] || ''
             if (node.length > 0) {
                 return true
             }
@@ -53435,19 +54018,6 @@ var _e2echartNonSpyglassE2eChartTemplateHtml = []byte(`<html lang="en">
 
     // Structure the locator data and then categorize the event
     _.forEach(eventIntervals.items, function(eventInterval) {
-        eventInterval.locatorObj = {};
-        if (eventInterval.locator.includes("e2e-test/")) {
-            var value = eventInterval.locator.slice(eventInterval.locator.indexOf('/') + 1);
-            eventInterval.locatorObj.e2e_test = value;
-        }
-        else {
-            var locatorChunks = eventInterval.locator.split(" ");
-            _.forEach(locatorChunks, function(chunk){
-                var key = chunk.slice(0, chunk.indexOf('/'));
-                var value = chunk.slice(chunk.indexOf('/') + 1);
-                eventInterval.locatorObj[key] = value;
-            });
-        }
 
         // TODO Wasn't clear if an event is only supposed to be in one category or if it can show up in multiple, with the existing implementation
         // it can show up more than once if it passes more than one of the category checks. If it is meant to only be one category this
@@ -53456,7 +54026,6 @@ var _e2echartNonSpyglassE2eChartTemplateHtml = []byte(`<html lang="en">
 
         // Categorizing the events once on page load will save time on filtering later
         eventInterval.categories = {};
-        var categorized = false;
         eventInterval.categories.operator_unavailable = isOperatorAvailable(eventInterval);
         eventInterval.categories.operator_progressing = isOperatorProgressing(eventInterval);
         eventInterval.categories.operator_degraded = isOperatorDegraded(eventInterval);
@@ -53473,47 +54042,39 @@ var _e2echartNonSpyglassE2eChartTemplateHtml = []byte(`<html lang="en">
     });
 
     function isOperatorAvailable(eventInterval) {
-        if (eventInterval.locator.includes("clusteroperator/") && eventInterval.message.includes("condition/Available") && eventInterval.message.includes("status/False")) {
-            return true
-        }
-        return false
+        return eventInterval.locator.type === "ClusterOperator" &&
+            eventInterval.message.annotations["condition"] === "Available" &&
+            eventInterval.message.annotations["status"] === "False";
     }
 
+
     function isOperatorDegraded(eventInterval) {
-        if (eventInterval.locator.includes("clusteroperator/") && eventInterval.message.includes("condition/Degraded") && eventInterval.message.includes("status/True")) {
-            return true
-        }
-        return false
+        return eventInterval.locator.type === "ClusterOperator" &&
+            eventInterval.message.annotations["condition"] === "Degraded" &&
+            eventInterval.message.annotations["status"] === "True";
     }
 
     function isOperatorProgressing(eventInterval) {
-        if (eventInterval.locator.includes("clusteroperator/") && eventInterval.message.includes("condition/Progressing") && eventInterval.message.includes("status/True")) {
-            return true
-        }
-        return false
+        return eventInterval.locator.type === "ClusterOperator" &&
+            eventInterval.message.annotations["condition"] === "Progressing" &&
+            eventInterval.message.annotations["status"] === "True";
     }
 
     function isPodLog(eventInterval) {
-        if (eventInterval.locator.includes("src/podLog")) {
+        if (eventInterval.source === 'PodLog') {
             return true
         }
-        if (eventInterval.locator.includes("etcd-member/")) {
-            return true
-        }
-        return false
+        return eventInterval.source === 'EtcdLog';
+
     }
 
     function isInterestingOrPathological(eventInterval) {
-        if (eventInterval.message.includes("pathological/true") || (eventInterval.message.includes("interesting/true"))) {
-            return true
-        }
-        return false
+        return eventInterval.source === 'KubeEvent' && eventInterval.message.annotations["pathological"] === "true";
     }
 
     function isPod(eventInterval) {
         // this check was added to keep the repeating events out fo the "pods" section
-        const nTimes = new RegExp("\\(\\d+ times\\)")
-        if (eventInterval.message.match(nTimes)) {
+        if (eventInterval.message.annotations.hasOwnProperty("count")) {
             return false
         }
         // this check was added to avoid the events from the "interesting-events" section from being
@@ -53521,79 +54082,90 @@ var _e2echartNonSpyglassE2eChartTemplateHtml = []byte(`<html lang="en">
         if (isInterestingOrPathological(eventInterval)) {
             return false
         }
-        if (eventInterval.locator.includes("pod/") && !eventInterval.locator.includes("alert/")) {
+        if (eventInterval.locator.keys.hasOwnProperty("pod") && !eventInterval.locator.keys.hasOwnProperty("alert")) {
             return true
         }
         return false
     }
 
     function isPodLifecycle(eventInterval) {
-        if (eventInterval.locator.includes("pod/") && (eventInterval.message.includes("reason/Created") || eventInterval.message.includes("reason/Scheduled") || eventInterval.message.includes("reason/GracefulDelete"))) {
+        if (eventInterval.locator.keys.hasOwnProperty("pod") &&
+            (eventInterval.message.reason === "Created" ||
+                eventInterval.message.reason === "Scheduled" ||
+                eventInterval.message.reason === "GracefulDelete")) {
             return true
         }
         return false
     }
 
     function isContainerLifecycle(eventInterval) {
-        if (eventInterval.locator.includes("container/") && (eventInterval.message.includes("reason/ContainerExit") || eventInterval.message.includes("reason/ContainerStart") || eventInterval.message.includes("reason/ContainerWait"))) {
+        if (eventInterval.locator.keys.hasOwnProperty("container") &&
+            (eventInterval.message.reason === "ContainerExit" ||
+                eventInterval.message.reason === "ContainerStart" ||
+                eventInterval.message.reason === "ContainerWait")) {
             return true
         }
         return false
     }
 
     function isContainerReadiness(eventInterval) {
-        if (eventInterval.locator.includes("container/") && (eventInterval.message.includes("reason/Ready") || eventInterval.message.includes("reason/NotReady"))) {
+        if (eventInterval.locator.keys.hasOwnProperty("container") &&
+            (eventInterval.message.reason === "Ready" ||
+                eventInterval.message.reason === "NotReady")) {
             return true
         }
         return false
     }
 
     function isKubeletReadinessCheck(eventInterval) {
-        if (eventInterval.locator.includes("container/") && (eventInterval.message.includes("reason/ReadinessFailed") || eventInterval.message.includes("reason/ReadinessErrored"))) {
+        if (eventInterval.locator.keys.hasOwnProperty("container/") &&
+            (eventInterval.message.reason === "ReadinessFailed" ||
+                eventInterval.message.reason === "ReadinessErrored")) {
             return true
         }
         return false
     }
 
     function isKubeletStartupProbeFailure(eventInterval) {
-        if (eventInterval.locator.includes("container/") && (eventInterval.message.includes("reason/StartupProbeFailed"))) {
+        if (eventInterval.locator.keys.hasOwnProperty("container") &&
+            (eventInterval.message.reason === "StartupProbeFailed")) {
             return true
         }
         return false
     }
 
     function isE2EFailed(eventInterval) {
-        if (eventInterval.locator.includes("e2e-test/") && eventInterval.message.includes("finished As \"Failed")) {
+        if (eventInterval.source === "E2ETest" && eventInterval.message.annotations["status"] === "Failed") {
             return true
         }
         return false
     }
 
     function isE2EFlaked(eventInterval) {
-        if (eventInterval.locator.includes("e2e-test/") && eventInterval.message.includes("finished As \"Flaked")) {
+        if (eventInterval.source === "E2ETest" && eventInterval.message.annotations["status"] === "Flaked") {
             return true
         }
         return false
     }
 
     function isE2EPassed(eventInterval) {
-        if (eventInterval.locator.includes("e2e-test/") && eventInterval.message.includes("finished As \"Passed")) {
+        if (eventInterval.source === "E2ETest" && eventInterval.message.annotations["status"] === "Passed") {
             return true
         }
         return false
     }
 
     function isEndpointConnectivity(eventInterval) {
-        if (!eventInterval.message.includes("reason/DisruptionBegan") && !eventInterval.message.includes("reason/DisruptionSamplerOutageBegan")){
+        if (eventInterval.message.reason !== "DisruptionBegan" && eventInterval.message.reason !== "DisruptionSamplerOutageBegan") {
             return false
         }
-        if (eventInterval.locator.includes("disruption/")) {
+        if (eventInterval.source === "Disruption") {
             return true
         }
-        if (eventInterval.locator.includes("ns/e2e-k8s-service-lb-available")) {
+        if (eventInterval.locator.keys["namespace"] === "e2e-k8s-service-lb-available") {
             return true
         }
-        if (eventInterval.locator.includes(" route/")) {
+        if (eventInterval.locator.keys.hasOwnProperty("route")) {
             return true
         }
 
@@ -53601,137 +54173,144 @@ var _e2echartNonSpyglassE2eChartTemplateHtml = []byte(`<html lang="en">
     }
 
     function isNodeState(eventInterval) {
-        return eventInterval.tempStructuredLocator.type === "Node" &&
-            (eventInterval.tempStructuredMessage.reason === "NodeUpdate" ||
-                eventInterval.tempStructuredMessage.reason === "NotReady");
+        return eventInterval.source === "NodeState"
     }
 
-
     function isAlert(eventInterval) {
-        if (eventInterval.locator.includes("alert/")) {
-            return true
-        }
-        return false
+        return eventInterval.source === "Alert"
     }
 
     function interestingEvents(item) {
-        if (item.message.includes("pathological/true")) {
-            if (item.message.includes("interesting/true")) {
-                return [item.locator, ` + "`" + ` (pathological known)` + "`" + `, "PathologicalKnown"];
+        if (item.message.annotations["pathological"] === "true") {
+            if (item.message.annotations["interesting"] === "true") {
+                return [buildLocatorDisplayString(item.locator), ` + "`" + ` (pathological known)` + "`" + `, "PathologicalKnown"];
             } else {
-                return [item.locator, ` + "`" + ` (pathological new)` + "`" + `, "PathologicalNew"];
+                return [buildLocatorDisplayString(item.locator), ` + "`" + ` (pathological new)` + "`" + `, "PathologicalNew"];
             }
         }
-        if (item.message.includes("interesting/true")) {
-            return [item.locator, ` + "`" + ` (interesting event)` + "`" + `, "InterestingEvent"];
+        // TODO: hack that can likely be removed when we get to structured intervals for these
+        // Always show pod sandbox events even if they didn't make it to pathological
+        if (item.message.annotations["interesting"] === "true" && item.message.humanMessage.includes("pod sandbox")) {
+            return [buildLocatorDisplayString(item.locator), ` + "`" + ` (pod sandbox)` + "`" + `, "PodSandbox"];
         }
     }
 
     function podLogs(item) {
         if (item.level == "Warning") {
-            return [item.locator, ` + "`" + ` (pod log)` + "`" + `, "PodLogWarning"];
+            return [buildLocatorDisplayString(item.locator), ` + "`" + ` (pod log)` + "`" + `, "PodLogWarning"];
         }
         if (item.level == "Error") {
-            return [item.locator, ` + "`" + ` (pod log)` + "`" + `, "PodLogError"];
+            return [buildLocatorDisplayString(item.locator), ` + "`" + ` (pod log)` + "`" + `, "PodLogError"];
         }
-        return [item.locator, ` + "`" + ` (pod log)` + "`" + `, "PodLogInfo"];
+        return [buildLocatorDisplayString(item.locator), ` + "`" + ` (pod log)` + "`" + `, "PodLogInfo"];
     }
 
+    // Used for the actual locators displayed on the right hand side of the chart. Based on the origin go code that does
+    // similar for whenever we serialize a locator to display.
+    function buildLocatorDisplayString(i) {
+        let keys = Object.keys(i.keys);
+        keys = sortKeys(keys);
 
-    const reReason = new RegExp("(^| )reason/([^ ]+)")
+        let annotations = [];
+        for (let k of keys) {
+            let v = i.keys[k];
+            if (k === 'LocatorE2ETestKey') {
+                annotations.push(` + "`" + `${k}/${JSON.stringify(v)}` + "`" + `);
+            } else {
+                annotations.push(` + "`" + `${k}/${v}` + "`" + `);
+            }
+        }
+
+        return annotations.join(' ');
+    }
+
     function podStateValue(item) {
-        let m = item.message.match(reReason);
+        let reason = item.message.reason
+        if (isPodLifecycle(item)){
+            if (reason === "Created") {
+                return [buildLocatorDisplayString(item.locator), ` + "`" + ` (pod lifecycle)` + "`" + `, "PodCreated"];
+            }
+            if (reason === "Scheduled") {
+                return [buildLocatorDisplayString(item.locator), ` + "`" + ` (pod lifecycle)` + "`" + `, "PodScheduled"];
+            }
+            if (reason === "GracefulDelete") {
+                return [buildLocatorDisplayString(item.locator), ` + "`" + ` (pod lifecycle)` + "`" + `, "PodTerminating"];
+            }
+        }
+        if (isContainerLifecycle(item)){
+            if (reason === "ContainerWait") {
+                return [buildLocatorDisplayString(item.locator), ` + "`" + ` (container lifecycle)` + "`" + `, "ContainerWait"];
+            }
+            if (reason === "ContainerStart") {
+                return [buildLocatorDisplayString(item.locator), ` + "`" + ` (container lifecycle)` + "`" + `, "ContainerStart"];
+            }
+        }
+        if (isContainerReadiness(item)){
+            if (reason === "NotReady") {
+                return [buildLocatorDisplayString(item.locator), ` + "`" + ` (container readiness)` + "`" + `, "ContainerNotReady"];
+            }
+            if (reason === "Ready") {
+                return [buildLocatorDisplayString(item.locator), ` + "`" + ` (container readiness)` + "`" + `, "ContainerReady"];
+            }
+        }
+        if (isKubeletReadinessCheck(item)){
+            if (reason === "ReadinessFailed") {
+                return [buildLocatorDisplayString(item.locator), ` + "`" + ` (kubelet container readiness)` + "`" + `, "ContainerReadinessFailed"];
+            }
+            if (reason === "ReadinessErrored") {
+                return [buildLocatorDisplayString(item.locator), ` + "`" + ` (kubelet container readiness)` + "`" + `, "ContainerReadinessErrored"];
+            }
+        }
+        if (isKubeletStartupProbeFailure(item)){
+            return [buildLocatorDisplayString(item.locator), ` + "`" + ` (kubelet container startupProbe)` + "`" + `, "StartupProbeFailed"];
+        }
 
-        if (m && isPodLifecycle(item)){
-            if (m[2] == "Created") {
-                return [item.locator, ` + "`" + ` (pod lifecycle)` + "`" + `, "PodCreated"];
-            }
-            if (m[2] == "Scheduled") {
-                return [item.locator, ` + "`" + ` (pod lifecycle)` + "`" + `, "PodScheduled"];
-            }
-            if (m[2] == "GracefulDelete") {
-                return [item.locator, ` + "`" + ` (pod lifecycle)` + "`" + `, "PodTerminating"];
-            }
-        }
-        if (m && isContainerLifecycle(item)){
-            if (m[2] == "ContainerWait") {
-                return [item.locator, ` + "`" + ` (container lifecycle)` + "`" + `, "ContainerWait"];
-            }
-            if (m[2] == "ContainerStart") {
-                return [item.locator, ` + "`" + ` (container lifecycle)` + "`" + `, "ContainerStart"];
-            }
-        }
-        if (m && isContainerReadiness(item)){
-            if (m[2] == "NotReady") {
-                return [item.locator, ` + "`" + ` (container readiness)` + "`" + `, "ContainerNotReady"];
-            }
-            if (m[2] == "Ready") {
-                return [item.locator, ` + "`" + ` (container readiness)` + "`" + `, "ContainerReady"];
-            }
-        }
-        if (m && isKubeletReadinessCheck(item)){
-            if (m[2] == "ReadinessFailed") {
-                return [item.locator, ` + "`" + ` (kubelet container readiness)` + "`" + `, "ContainerReadinessFailed"];
-            }
-            if (m[2] == "ReadinessErrored") {
-                return [item.locator, ` + "`" + ` (kubelet container readiness)` + "`" + `, "ContainerReadinessErrored"];
-            }
-        }
-        if (m && isKubeletStartupProbeFailure(item)){
-            return [item.locator, ` + "`" + ` (kubelet container startupProbe)` + "`" + `, "StartupProbeFailed"];
-        }
-
-        return [item.locator, "", "Unknown"];
+        return [buildLocatorDisplayString(item.locator), "", "Unknown"];
     }
 
     const rePhase = new RegExp("(^| )phase/([^ ]+)")
     function nodeStateValue(item) {
         let roles = ""
-        if (item.tempStructuredMessage.annotations.hasOwnProperty('roles')) {
-            roles = item.tempStructuredMessage.roles
+        if (item.message.annotations.hasOwnProperty('roles')) {
+            roles = item.message.annotations.roles
         }
 
-        if (item.tempStructuredMessage.reason === 'NotReady') {
-            return [item.locator, ` + "`" + ` (${roles})` + "`" + `, "NodeNotReady"]
+        if (item.message.reason === 'NotReady') {
+            return [buildLocatorDisplayString(item.locator), ` + "`" + ` (${roles})` + "`" + `, "NodeNotReady"]
         }
-        let m = item.tempStructuredMessage.annotations.phase;
-        return [item.locator, ` + "`" + ` (${roles})` + "`" + `, m];
+        let m = item.message.annotations.phase;
+        return [buildLocatorDisplayString(item.locator), ` + "`" + ` (${roles})` + "`" + `, m];
     }
 
 
     function alertSeverity(item) {
         // the other types can be pending, so check pending first
-        let pendingIndex = item.message.indexOf("pending")
-        if (pendingIndex != -1) {
-            return [item.locator, "", "AlertPending"]
+        if (item.message.annotations["alertstate"] === "pending") {
+            return [buildLocatorDisplayString(item.locator), "", "AlertPending"]
         }
 
-        let infoIndex = item.message.indexOf("info")
-        if (infoIndex != -1) {
-            return [item.locator, "", "AlertInfo"]
+        if (item.message.annotations["severity"] === "info") {
+            return [buildLocatorDisplayString(item.locator), "", "AlertInfo"]
         }
-        let warningIndex = item.message.indexOf("warning")
-        if (warningIndex != -1) {
-            return [item.locator, "", "AlertWarning"]
+        if (item.message.annotations["severity"] === "warning") {
+            return [buildLocatorDisplayString(item.locator), "", "AlertWarning"]
         }
-        let criticalIndex = item.message.indexOf("critical")
-        if (criticalIndex != -1) {
-            return [item.locator, "", "AlertCritical"]
+        if (item.message.annotations["severity"] === "critical") {
+            return [buildLocatorDisplayString(item.locator), "", "AlertCritical"]
         }
 
         // color as critical if nothing matches so that we notice that something has gone wrong
-        return [item.locator, "", "AlertCritical"]
+        return [buildLocatorDisplayString(item.locator), "", "AlertCritical"]
     }
 
     function disruptionValue(item) {
         // We classify these disruption samples with this message if it thinks
         // it looks like a problem in the CI cluster running the tests, not the cluster under test.
         // (typically DNS lookup problems)
-        let ciClusterDisruption = item.message.indexOf("likely a problem in cluster running tests")
-        if (ciClusterDisruption != -1) {
-            return [item.locator, "", "CIClusterDisruption"]
+        if (item.message.reason === "DisruptionSamplerOutageBegan") {
+            return [buildLocatorDisplayString(item.locator), "", "CIClusterDisruption"]
         }
-        return [item.locator, "", "Disruption"]
+        return [buildLocatorDisplayString(item.locator), "", "Disruption"]
     }
 
     function getDurationString(durationSeconds) {
@@ -53746,15 +54325,64 @@ var _e2echartNonSpyglassE2eChartTemplateHtml = []byte(`<html lang="en">
     }
 
     function defaultToolTip(item) {
-        let tt = item.message
-        if ('tempSource' in item) {
-            tt = tt + " source/" + item.tempSource
+        if (!item.message || !item.message.annotations) {
+            return '';
         }
+
+        const structuredMessage = item.message;
+        const annotations = structuredMessage.annotations;
+
+        const keyValuePairs = Object.entries(annotations).map(([key, value]) => {
+            return ` + "`" + `${key}/${value}` + "`" + `;
+        });
+
+        let tt = keyValuePairs.join(' ') + ' ' + structuredMessage.humanMessage;
+
+        // TODO: can probably remove this once we're confident all displayed intervals have it set
         if ('display' in item) {
-            tt = tt + " display/" + item.display
+            tt = "display/" + item.display + " " + tt
+        }
+        if ('source' in item) {
+            tt = "source/" + item.source + " " + tt
         }
         tt = tt + " " + getDurationString(((new Date(item.to)).getTime() - (new Date(item.from).getTime()))/1000);
         return tt
+    }
+
+    function sortKeys(keys) {
+        // Ensure these keys appear in this order. Other keys can be mixed in and will appear at the end in alphabetical order.
+        const orderedKeys = ["namespace", "node", "pod", "uid", "server", "container", "shutdown", "row"];
+
+        // Create a map to store the indices of keys in the orderedKeys array.
+        // This will allow us to efficiently check if a key is in orderedKeys and find its position.
+        const orderedKeyIndices = {};
+        orderedKeys.forEach((key, index) => {
+            orderedKeyIndices[key] = index;
+        });
+
+        // Define a custom sorting function that orders the keys based on the orderedKeys array.
+        keys.sort((a, b) => {
+            // Get the indices of keys a and b in orderedKeys.
+            const indexA = orderedKeyIndices[a];
+            const indexB = orderedKeyIndices[b];
+
+            // If both keys exist in orderedKeys, sort them based on their order.
+            if (indexA !== undefined && indexB !== undefined) {
+                return indexA - indexB;
+            }
+
+            // If only one of the keys exists in orderedKeys, move it to the front.
+            if (indexA !== undefined) {
+                return -1;
+            } else if (indexB !== undefined) {
+                return 1;
+            }
+
+            // If neither key is in orderedKeys, sort alphabetically so we have predictable ordering.
+            return a.localeCompare(b);
+        });
+
+        return keys;
     }
 
     function segmentTooltipFunc(d) {
@@ -53787,7 +54415,7 @@ var _e2echartNonSpyglassE2eChartTemplateHtml = []byte(`<html lang="en">
             if (!item.to) {
                 endDate = latest
             }
-            let label = item.locator
+            let label = buildLocatorDisplayString(item.locator)
             let sub = ""
             let val = timelineVal
             if (typeof val === "function") {
@@ -53880,8 +54508,8 @@ var _e2echartNonSpyglassE2eChartTemplateHtml = []byte(`<html lang="en">
 
                 for (let [key, positiveSelectionRow] of positiveSelectionRows) {
                     if (positiveSelectionRow.isSet){
-                        matchRegex = positiveSelectionRow.regexStr.length == 0 || positiveSelectionRow.regex.test(eventInterval.locator)
-                        matchNS = positiveSelectionRow.namespace.length == 0 || eventInterval.locatorObj.ns && eventInterval.locatorObj.ns.includes(positiveSelectionRow.namespace)
+                        matchRegex = positiveSelectionRow.regexStr.length == 0 || positiveSelectionRow.regex.test(buildLocatorDisplayString(eventInterval.locator))
+                        matchNS = positiveSelectionRow.namespace.length == 0 || eventInterval.locator.keys.namespace && eventInterval.locator.namespace.includes(positiveSelectionRow.namespace)
                         matchCategory = positiveSelectionRow.category.length == 0 || eventInterval.categories[positiveSelectionRow.category]
                         matchLodash = true
                         if (positiveSelectionRow.lodash.length > 0){
@@ -53896,8 +54524,8 @@ var _e2echartNonSpyglassE2eChartTemplateHtml = []byte(`<html lang="en">
                             for (let [key, negativeSelectionRow] of negativeSelectionRows) {
                                 if (negativeSelectionRow.isSet){
                                     console.log("checking negative")
-                                    matchRegex = negativeSelectionRow.regexStr.length == 0 || negativeSelectionRow.regex.test(eventInterval.locator)
-                                    matchNS = negativeSelectionRow.namespace.length == 0 || eventInterval.locatorObj.ns && eventInterval.locatorObj.ns.includes(negativeSelectionRow.namespace)
+                                    matchRegex = negativeSelectionRow.regexStr.length == 0 || negativeSelectionRow.regex.test(buildLocatorDisplayString(eventInterval.locator))
+                                    matchNS = negativeSelectionRow.namespace.length == 0 || eventInterval.locator.keys.namespace && eventInterval.locator.keys.namespace.includes(negativeSelectionRow.namespace)
                                     matchCategory = negativeSelectionRow.category.length == 0 || eventInterval.categories[negativeSelectionRow.category]
                                     matchLodash = true
                                     if (negativeSelectionRow.lodash.length > 0){
@@ -54391,6 +55019,8 @@ var _bindata = map[string]func() (*asset, error){
 	"test/extended/testdata/builds/docker-add/docker-add-env/Dockerfile":                                     testExtendedTestdataBuildsDockerAddDockerAddEnvDockerfile,
 	"test/extended/testdata/builds/docker-add/docker-add-env/foo":                                            testExtendedTestdataBuildsDockerAddDockerAddEnvFoo,
 	"test/extended/testdata/builds/incremental-auth-build.json":                                              testExtendedTestdataBuildsIncrementalAuthBuildJson,
+	"test/extended/testdata/builds/jenkins-pipeline/jenkins-ephemeral.json":                                  testExtendedTestdataBuildsJenkinsPipelineJenkinsEphemeralJson,
+	"test/extended/testdata/builds/jenkins-pipeline/jenkins-rhel.yaml":                                       testExtendedTestdataBuildsJenkinsPipelineJenkinsRhelYaml,
 	"test/extended/testdata/builds/pullsecret/linked-nodejs-bc.yaml":                                         testExtendedTestdataBuildsPullsecretLinkedNodejsBcYaml,
 	"test/extended/testdata/builds/pullsecret/pullsecret-nodejs-bc.yaml":                                     testExtendedTestdataBuildsPullsecretPullsecretNodejsBcYaml,
 	"test/extended/testdata/builds/s2i-environment-build-app/.s2i/environment":                               testExtendedTestdataBuildsS2iEnvironmentBuildAppS2iEnvironment,
@@ -54644,6 +55274,8 @@ var _bindata = map[string]func() (*asset, error){
 	"test/extended/testdata/image_ecosystem/perl-hotdeploy/index.pl":                                         testExtendedTestdataImage_ecosystemPerlHotdeployIndexPl,
 	"test/extended/testdata/image_ecosystem/perl-hotdeploy/lib/My/Test.pm":                                   testExtendedTestdataImage_ecosystemPerlHotdeployLibMyTestPm,
 	"test/extended/testdata/image_ecosystem/perl-hotdeploy/perl.json":                                        testExtendedTestdataImage_ecosystemPerlHotdeployPerlJson,
+	"test/extended/testdata/ipsec/ipsec-nsconfig-machine-config.yaml":                                        testExtendedTestdataIpsecIpsecNsconfigMachineConfigYaml,
+	"test/extended/testdata/ipsec/nmstate.yaml":                                                              testExtendedTestdataIpsecNmstateYaml,
 	"test/extended/testdata/kernel/rt-tests-environment.yaml":                                                testExtendedTestdataKernelRtTestsEnvironmentYaml,
 	"test/extended/testdata/kernel/rt-tests-pod.yaml":                                                        testExtendedTestdataKernelRtTestsPodYaml,
 	"test/extended/testdata/ldap/groupsync/ad/blacklist_ldap.txt":                                            testExtendedTestdataLdapGroupsyncAdBlacklist_ldapTxt,
@@ -54980,6 +55612,10 @@ var _bintree = &bintree{nil, map[string]*bintree{
 						}},
 					}},
 					"incremental-auth-build.json": {testExtendedTestdataBuildsIncrementalAuthBuildJson, map[string]*bintree{}},
+					"jenkins-pipeline": {nil, map[string]*bintree{
+						"jenkins-ephemeral.json": {testExtendedTestdataBuildsJenkinsPipelineJenkinsEphemeralJson, map[string]*bintree{}},
+						"jenkins-rhel.yaml":      {testExtendedTestdataBuildsJenkinsPipelineJenkinsRhelYaml, map[string]*bintree{}},
+					}},
 					"pullsecret": {nil, map[string]*bintree{
 						"linked-nodejs-bc.yaml":     {testExtendedTestdataBuildsPullsecretLinkedNodejsBcYaml, map[string]*bintree{}},
 						"pullsecret-nodejs-bc.yaml": {testExtendedTestdataBuildsPullsecretPullsecretNodejsBcYaml, map[string]*bintree{}},
@@ -55361,6 +55997,10 @@ var _bintree = &bintree{nil, map[string]*bintree{
 						}},
 						"perl.json": {testExtendedTestdataImage_ecosystemPerlHotdeployPerlJson, map[string]*bintree{}},
 					}},
+				}},
+				"ipsec": {nil, map[string]*bintree{
+					"ipsec-nsconfig-machine-config.yaml": {testExtendedTestdataIpsecIpsecNsconfigMachineConfigYaml, map[string]*bintree{}},
+					"nmstate.yaml":                       {testExtendedTestdataIpsecNmstateYaml, map[string]*bintree{}},
 				}},
 				"kernel": {nil, map[string]*bintree{
 					"rt-tests-environment.yaml": {testExtendedTestdataKernelRtTestsEnvironmentYaml, map[string]*bintree{}},
